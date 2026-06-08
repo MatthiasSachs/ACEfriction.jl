@@ -23,8 +23,12 @@ export RWCMatrixModel, mbdpd_matrixmodel, OnsiteOnlyMatrixModel, PWCMatrixModel
 import ACEfriction.DataUtils: write_dict, read_dict, load_h5fdata, save_h5fdata
 export write_dict, read_dict, load_h5fdata, save_h5fdata
 
-import JuLIP: Atoms
-export Atoms
+# Re-export AtomsBase / AtomsBuilder so existing scripts can build configurations
+# (replacing JuLIP's `Atoms` / `bulk` / `rattle!`).
+import AtomsBase: FlexibleSystem, FastSystem
+export FlexibleSystem, FastSystem
+import AtomsBuilder: bulk, rattle!
+export bulk, rattle!
 
 import ACEfrictionCore.ACEbonds: EllipsoidCutoff
 export EllipsoidCutoff, SphericalCutoff
@@ -32,7 +36,7 @@ export EllipsoidCutoff, SphericalCutoff
 import ACEfrictionCore: Invariant, EuclideanVector, EuclideanMatrix
 export Invariant, EuclideanVector, EuclideanMatrix
 
-import JuLIP: save_dict, load_dict
+import ACEbase.FIO: save_dict, load_dict
 export save_dict, load_dict
 
 import ACEfriction.FrictionFit: weighted_l2_loss, weighted_l1_loss

@@ -24,17 +24,18 @@ function ACEfrictionCore.set_params!(mb::OnsiteOnlyMatrixModel, θ::NamedTuple)
     ACEfrictionCore.set_params!(mb, :onsite,  θ.onsite)
 end
 
-function allocate_matrix(M::OnsiteOnlyMatrixModel, at::Atoms,  T=Float64) 
+function allocate_matrix(M::OnsiteOnlyMatrixModel, at::AbstractSystem,  T=Float64)
     N = length(at)
     return [Diagonal(zeros(_block_type(M,T),N)) for _ = 1:M.n_rep]
 end
 
-function matrix!(M::OnsiteOnlyMatrixModel{O3S}, at::Atoms, Σ, filter=(_,_)->true) where {O3S}
-    site_filter(i,at) = (haskey(M.onsite, at.Z[i]) && filter(i, at))
-    for (i, neigs, Rs) in sites(at, env_cutoff(M.onsite))
+function matrix!(M::OnsiteOnlyMatrixModel{O3S}, at::AbstractSystem, Σ, filter=(_,_)->true) where {O3S}
+    Z = _species(at)
+    site_filter(i,at) = (haskey(M.onsite, Z[i]) && filter(i, at))
+    for (i, neigs, Rs) in _sites(at, env_cutoff(M.onsite))
         if site_filter(i, at) && length(neigs) > 0
-            Zs = at.Z[neigs]
-            sm = _get_model(M, at.Z[i])
+            Zs = Z[neigs]
+            sm = _get_model(M, Z[i])
             Σ_temp = evaluate(sm, Rs, Zs)
             for r=1:M.n_rep
                 Σ[r][i,i] += _val2block(M, Σ_temp[r].val)
@@ -43,26 +44,27 @@ function matrix!(M::OnsiteOnlyMatrixModel{O3S}, at::Atoms, Σ, filter=(_,_)->tru
     end
 end
 
-function basis(M::OnsiteOnlyMatrixModel, at::Atoms; join_sites=false, filter=(_,_)->true, T=Float64) 
+function basis(M::OnsiteOnlyMatrixModel, at::AbstractSystem; join_sites=false, filter=(_,_)->true, T=Float64)
     B = allocate_B(M, at, T)
     basis!(B, M, at, filter)
     return (join_sites ? B[1] : B)
 end
 
-function allocate_B(M::OnsiteOnlyMatrixModel, at::Atoms, T=Float64)
+function allocate_B(M::OnsiteOnlyMatrixModel, at::AbstractSystem, T=Float64)
     N = length(at)
     B_onsite = [Diagonal( zeros(_block_type(M,T),N)) for _ = 1:length(M.inds,:onsite)]
     return (onsite=B_onsite,)
 end
 
-function basis!(B, M::OnsiteOnlyMatrixModel, at::Atoms, filter=(_,_)->true)
-    site_filter(i,at) = (haskey(M.onsite, at.Z[i]) && filter(i, at))
-    for (i, neigs, Rs) in sites(at, env_cutoff(M.onsite))
+function basis!(B, M::OnsiteOnlyMatrixModel, at::AbstractSystem, filter=(_,_)->true)
+    Z = _species(at)
+    site_filter(i,at) = (haskey(M.onsite, Z[i]) && filter(i, at))
+    for (i, neigs, Rs) in _sites(at, env_cutoff(M.onsite))
         if site_filter(i, at) && length(neigs) > 0
             # evaluate basis of onsite model
-            Zs = at.Z[neigs]
-            sm = _get_model(M, at.Z[i])
-            inds = get_range(M, at.Z[i])
+            Zs = Z[neigs]
+            sm = _get_model(M, Z[i])
+            inds = get_range(M, Z[i])
             Bii = evaluate(sm.linmodel.basis, env_transform(Rs, Zs, sm.cutoff))
             for (k,b) in zip(inds,Bii)
                 B.onsite[k][i,i] += _val2block(M, b.val)

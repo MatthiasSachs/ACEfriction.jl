@@ -2,7 +2,6 @@ using ACEfriction
 using ACEfriction: RWCMatrixModel
 using ACEfrictionCore
 using ACEfriction.MatrixModels
-using JuLIP
 
 
 using ACEfriction.FrictionModels
@@ -14,8 +13,7 @@ using LinearAlgebra
 
 
 using Test
-using JuLIP
-using Random 
+using Random
 
 #%% Load data
 

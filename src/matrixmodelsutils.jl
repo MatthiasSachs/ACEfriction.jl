@@ -2,7 +2,7 @@ using ACEfriction.AtomCutoffs: SphericalCutoff
 using ACEfrictionCore
 using ACEfriction.MatrixModels
 using ACEfriction
-using JuLIP: AtomicNumber
+import ACEfrictionCore: _atomic_number
 using ACEfriction.MatrixModels: _o3symmetry, EvaluationCenter
 using ACEfrictionCore.ACEbonds: EllipsoidCutoff, AbstractBondCutoff
 using ACEfriction.MatrixModels: _default_id, _mreduce
@@ -140,9 +140,9 @@ function RWCMatrixModel(property, species_friction, species_env, evalcenter::EC;
     )
     @info "Size of offsite basis elements: $(length(offsitebasis))"
 
-    onsitemodels =  Dict(AtomicNumber(z) => OnSiteModel(onsitebasis, rcut_on, n_rep)  for z in species_friction) 
+    onsitemodels =  Dict(_atomic_number(z) => OnSiteModel(onsitebasis, rcut_on, n_rep)  for z in species_friction) 
     cutoff_off = ACEfriction.SphericalCutoff(rcut_off)
-    offsitemodels =  Dict(AtomicNumber.(zz) => OffSiteModel(offsitebasis, cutoff_off,n_rep)  for zz in Base.Iterators.product(species_friction,species_friction)) 
+    offsitemodels =  Dict(_atomic_number.(zz) => OffSiteModel(offsitebasis, cutoff_off,n_rep)  for zz in Base.Iterators.product(species_friction,species_friction)) 
     S = _o3symmetry(onsitemodels, offsitemodels)
     id = (id === nothing ? _default_id(S) : id) 
 
@@ -213,7 +213,7 @@ function OnsiteOnlyMatrixModel(property, species_friction, species_env;
     )
     #@info "Size of onsite basis: $(length(onsitebasis))"
 
-    onsitemodels =  Dict(AtomicNumber(z) => OnSiteModel(onsitebasis, SphericalCutoff(rcut), n_rep)  for z in species_friction) 
+    onsitemodels =  Dict(_atomic_number(z) => OnSiteModel(onsitebasis, SphericalCutoff(rcut), n_rep)  for z in species_friction) 
     S = _o3symmetry(onsitemodels)
     id = (id === nothing ? _default_id(S) : id) 
 
@@ -314,9 +314,9 @@ function mbdpd_matrixmodel(property, species_friction, species_env;
     # )
 
     # if typeof(cutoff_off)<:AbstractBondCutoff
-    #     offsitemodels =  Dict(AtomicNumber.(zz) => OffSiteModel(offsitebasis, cutoff_off,n_rep)  for zz in Base.Iterators.product(species_friction,species_friction) if _msort(zz...) == zz ) 
+    #     offsitemodels =  Dict(_atomic_number.(zz) => OffSiteModel(offsitebasis, cutoff_off,n_rep)  for zz in Base.Iterators.product(species_friction,species_friction) if _msort(zz...) == zz ) 
     # elseif typeof(cutoff_off) <: Dict{Tuple{AtomicNumber,AtomicNumber},<:AbstractBondCutoff}
-    #     offsitemodels =  Dict(AtomicNumber.(zz) => OffSiteModel(offsitebasis, cutoff_off[zz],n_rep)  for zz in Base.Iterators.product(species_friction,species_friction) if _msort(zz...) == zz ) 
+    #     offsitemodels =  Dict(_atomic_number.(zz) => OffSiteModel(offsitebasis, cutoff_off[zz],n_rep)  for zz in Base.Iterators.product(species_friction,species_friction) if _msort(zz...) == zz ) 
     # end
 
     # S = _o3symmetry(offsitemodels)
@@ -397,9 +397,9 @@ function PWCMatrixModel(property, species_friction, species_env;
     )
 
     if typeof(speciescoupling)<:SpeciesUnCoupled
-        offsitemodels =  Dict(AtomicNumber.(zz) => OffSiteModel(offsitebasis, cutoff,n_rep)  for zz in Base.Iterators.product(species_friction,species_friction)) 
+        offsitemodels =  Dict(_atomic_number.(zz) => OffSiteModel(offsitebasis, cutoff,n_rep)  for zz in Base.Iterators.product(species_friction,species_friction)) 
     elseif typeof(speciescoupling)<:SpeciesCoupled
-        offsitemodels =  Dict(AtomicNumber.(zz) => OffSiteModel(offsitebasis, cutoff,n_rep)  for zz in Base.Iterators.product(species_friction,species_friction) if _mreduce(zz...,SpeciesCoupled) == zz ) 
+        offsitemodels =  Dict(_atomic_number.(zz) => OffSiteModel(offsitebasis, cutoff,n_rep)  for zz in Base.Iterators.product(species_friction,species_friction) if _mreduce(zz...,SpeciesCoupled) == zz ) 
     end
 
     S = _o3symmetry(offsitemodels)
@@ -451,9 +451,9 @@ function PWCMatrixModel(property, species_friction, species_env, cutoff::CUTOFF;
     )
 
     if typeof(speciescoupling)<:SpeciesUnCoupled
-        offsitemodels =  Dict(AtomicNumber.(zz) => OffSiteModel(offsitebasis, cutoff,n_rep)  for zz in Base.Iterators.product(species_friction,species_friction)) 
+        offsitemodels =  Dict(_atomic_number.(zz) => OffSiteModel(offsitebasis, cutoff,n_rep)  for zz in Base.Iterators.product(species_friction,species_friction)) 
     elseif typeof(speciescoupling)<:SpeciesCoupled
-        offsitemodels =  Dict(AtomicNumber.(zz) => OffSiteModel(offsitebasis, cutoff,n_rep)  for zz in Base.Iterators.product(species_friction,species_friction) if _mreduce(zz...,SpeciesCoupled) == zz ) 
+        offsitemodels =  Dict(_atomic_number.(zz) => OffSiteModel(offsitebasis, cutoff,n_rep)  for zz in Base.Iterators.product(species_friction,species_friction) if _mreduce(zz...,SpeciesCoupled) == zz ) 
     end
 
     S = _o3symmetry(offsitemodels)

@@ -36,13 +36,14 @@ end
 _index_map(i,j, ::RWCMatrixModel{O3S,CUTOFF,AtomCentered}) where {O3S,CUTOFF} = i,j
 _index_map(i,j, ::RWCMatrixModel{O3S,CUTOFF,NeighborCentered}) where {O3S,CUTOFF} = j,i 
 
-function matrix!(M::RWCMatrixModel{O3S,<:SphericalCutoff,EVALCENTER}, at::Atoms, Σ, filter=(_,_)->true) where {O3S,EVALCENTER}
-    site_filter(i,at) = (haskey(M.onsite, at.Z[i]) && filter(i, at))
-    for (i, neigs, Rs) in sites(at, env_cutoff(M.onsite))
+function matrix!(M::RWCMatrixModel{O3S,<:SphericalCutoff,EVALCENTER}, at::AbstractSystem, Σ, filter=(_,_)->true) where {O3S,EVALCENTER}
+    Z = _species(at)
+    site_filter(i,at) = (haskey(M.onsite, Z[i]) && filter(i, at))
+    for (i, neigs, Rs) in _sites(at, env_cutoff(M.onsite))
         if site_filter(i, at) && length(neigs) > 0
             # evaluate onsite model
-            Zs = at.Z[neigs]
-            sm = _get_model(M, at.Z[i])
+            Zs = Z[neigs]
+            sm = _get_model(M, Z[i])
             #cfg = env_transform(Rs, Zs, sm.cutoff)
             Σ_temp = evaluate(sm, Rs, Zs)
             for r=1:M.n_rep
@@ -50,7 +51,7 @@ function matrix!(M::RWCMatrixModel{O3S,<:SphericalCutoff,EVALCENTER}, at::Atoms,
             end
             # evaluate offsite model
             for (j_loc, j) in enumerate(neigs) #rij, riι
-                Zi, Zj = at.Z[i],at.Z[j]
+                Zi, Zj = Z[i],Z[j]
                 if haskey(M.offsite,(Zi,Zj))
                     sm = M.offsite[(Zi,Zj)]
                     cfg = env_transform(j_loc, Rs, Zs, sm.cutoff)
@@ -64,20 +65,21 @@ function matrix!(M::RWCMatrixModel{O3S,<:SphericalCutoff,EVALCENTER}, at::Atoms,
     end
 end
 
-function basis!(B, M::RWCMatrixModel{O3S,<:SphericalCutoff,EVALCENTER}, at::Atoms, filter=(_,_)->true) where {O3S,EVALCENTER} # Todo change type of B to NamedTuple{(:onsite,:offsite)} 
-    site_filter(i,at) = (haskey(M.onsite, at.Z[i]) && filter(i, at))
-    for (i, neigs, Rs) in sites(at, env_cutoff(M.onsite))
+function basis!(B, M::RWCMatrixModel{O3S,<:SphericalCutoff,EVALCENTER}, at::AbstractSystem, filter=(_,_)->true) where {O3S,EVALCENTER} # Todo change type of B to NamedTuple{(:onsite,:offsite)}
+    Z = _species(at)
+    site_filter(i,at) = (haskey(M.onsite, Z[i]) && filter(i, at))
+    for (i, neigs, Rs) in _sites(at, env_cutoff(M.onsite))
         if site_filter(i, at) && length(neigs) > 0
             # evaluate basis of onsite model
-            Zs = at.Z[neigs]
-            sm = _get_model(M, at.Z[i])
-            inds = get_range(M, at.Z[i])
+            Zs = Z[neigs]
+            sm = _get_model(M, Z[i])
+            inds = get_range(M, Z[i])
             Bii = evaluate(sm.linmodel.basis, env_transform(Rs, Zs, sm.cutoff))
             for (k,b) in zip(inds,Bii)
                 B.onsite[k][i,i] += _val2block(M, b.val)
             end
             for (j_loc, j) in enumerate(neigs)
-                Zi, Zj = at.Z[i],at.Z[j]
+                Zi, Zj = Z[i],Z[j]
                 if haskey(M.offsite,(Zi,Zj))
                     sm = M.offsite[(Zi,Zj)]
                     inds = get_range(M, (Zi,Zj))

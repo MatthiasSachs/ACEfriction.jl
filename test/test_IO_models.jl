@@ -7,7 +7,6 @@ using ACEfriction.FrictionModels
 using ACEfriction.MatrixModels
 using ACEfriction: RWCMatrixModel
 using Distributions: Categorical
-using JuLIP
 using LinearAlgebra
 using Test
 

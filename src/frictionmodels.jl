@@ -4,7 +4,7 @@ using StaticArrays, SparseArrays
 using ACEfriction.MatrixModels
 import ACEfriction.MatrixModels: basis, matrix
 using LinearAlgebra
-using JuLIP: Atoms
+using AtomsBase: AbstractSystem
 using ACEfrictionCore, Base
 
 using ACEfriction
@@ -44,22 +44,22 @@ function set_zero!(fm::FrictionModel, model_ids)
     end
 end
 """
-    Gamma(fm::FrictionModel, at::Atoms; filter=(_,_)->true, T=Float64)
+    Gamma(fm::FrictionModel, at::AbstractSystem; filter=(_,_)->true, T=Float64)
 
 
-Evaluates the friction tensor according to the friction model `fm` at the atomic configuration `at::Atoms`. The friction tensor is the sum of the friction tensors of all matrix models in `fm.matrixmodels`.
+Evaluates the friction tensor according to the friction model `fm` at the atomic configuration `at::AbstractSystem`. The friction tensor is the sum of the friction tensors of all matrix models in `fm.matrixmodels`.
 
 ### Arguments:
 
 - `fm` -- the friction model of which the friction tensor is evaluated.
 - `at` -- the atomic configuration at which the basis is evaluated
-- `filter`  -- (optional, default: `(_,_)->true`) a filter function of the generic form `(i::Int,at::Atoms) -> Bool`. Only atoms `at[i]` for which `filter(i,at)` returns `true` are included in the evaluation of the friction tensor.  
+- `filter`  -- (optional, default: `(_,_)->true`) a filter function of the generic form `(i::Int,at::AbstractSystem) -> Bool`. Only atoms `at[i]` for which `filter(i,at)` returns `true` are included in the evaluation of the friction tensor.  
 
 ### Output:
 
 A friction tensor in the form of a sparse 3N x 3N matrix, where N is the number of atoms in the atomic configuration `at`.  
 """
-function Gamma(fm::FrictionModel, at::Atoms; filter=(_,_)->true, T=Float64) 
+function Gamma(fm::FrictionModel, at::AbstractSystem; filter=(_,_)->true, T=Float64) 
     return sum(Gamma(mo, at; filter=filter, T=T) for mo in values(fm.matrixmodels))
 end
 
@@ -100,7 +100,7 @@ function randf(fm::FrictionModel{MODEL_IDS}, Σ::NamedTuple{MODEL_IDS}) where {M
 end
 
 """
-    Sigma(fm::FrictionModel{MODEL_IDS}, at::Atoms; filter=(_,_)->true, T=Float64) where {MODEL_IDS}
+    Sigma(fm::FrictionModel{MODEL_IDS}, at::AbstractSystem; filter=(_,_)->true, T=Float64) where {MODEL_IDS}
 
 Computes the diffusion coefficient matrices for all matrix models in the friction model at a given configuration.
 
@@ -108,35 +108,35 @@ Computes the diffusion coefficient matrices for all matrix models in the frictio
 
 - `fm` -- the friction model of which the diffusion coefficient matrices are evaluated
 - `at` -- the atomic configuration at which the diffusion coefficient matrices are evaluated
-- `filter`  -- (optional, default: `(_,_)->true`) a filter function of the generic form `(i::Int,at::Atoms) -> Bool`. Only atoms `at[i]` for which `filter(i,at)` returns `true` are included in the evaluation of the diffusion coefficient matrices.
+- `filter`  -- (optional, default: `(_,_)->true`) a filter function of the generic form `(i::Int,at::AbstractSystem) -> Bool`. Only atoms `at[i]` for which `filter(i,at)` returns `true` are included in the evaluation of the diffusion coefficient matrices.
 
 ### Output:
 
 A NamedTuple of diffusion coefficient matrices, where the keys are the IDs of the matrix models in the friction model.
 
 """
-function Sigma(fm::FrictionModel{MODEL_IDS}, at::Atoms; filter=(_,_)->true, T=Float64) where {MODEL_IDS}
+function Sigma(fm::FrictionModel{MODEL_IDS}, at::AbstractSystem; filter=(_,_)->true, T=Float64) where {MODEL_IDS}
     return NamedTuple{MODEL_IDS}(Sigma(mo, at; filter=filter, T=T) for mo in values(fm.matrixmodels))
 end
 
 """
-    basis(fm::FrictionModel{MODEL_IDS}, at::Atoms; join_sites=false, filter=(_,_)->true, T=Float64) where {MODEL_IDS}
+    basis(fm::FrictionModel{MODEL_IDS}, at::AbstractSystem; join_sites=false, filter=(_,_)->true, T=Float64) where {MODEL_IDS}
 
-Evaluates the ACE-basis functions of the friction model `fm` at the atomic configuration `at::Atoms`.
+Evaluates the ACE-basis functions of the friction model `fm` at the atomic configuration `at::AbstractSystem`.
 
 ### Arguments:
 
 - `fm` -- the friction model of which the basis is evaluated
 - `at` -- the atomic configuration at which the basis is evaluated
 - `join_sites` -- (optional, default: `false`) if `true`, the basis evaulations of all matrix models are concatenated into a single array. If `false`, the basis evaluations are returned as a named tuple of the type `NamedTuple{MODEL_IDS}`.
-- `filter`  -- (optional, default: `(_,_)->true`) a filter function of the generic form `(i::Int,at::Atoms) -> Bool`. The atom `at[i]` will be included in the basis iff `filter(i,at)` returns `true`.  
+- `filter`  -- (optional, default: `(_,_)->true`) a filter function of the generic form `(i::Int,at::AbstractSystem) -> Bool`. The atom `at[i]` will be included in the basis iff `filter(i,at)` returns `true`.  
 """
-function basis(fm::FrictionModel{MODEL_IDS}, at::Atoms; join_sites=false, filter=(_,_)->true, T=Float64) where {MODEL_IDS}
+function basis(fm::FrictionModel{MODEL_IDS}, at::AbstractSystem; join_sites=false, filter=(_,_)->true, T=Float64) where {MODEL_IDS}
     return NamedTuple{MODEL_IDS}(basis(mo, at; join_sites=join_sites, filter=filter, T=T) for mo in values(fm.matrixmodels))
     #return Dict(key => basis(mo, at; kvargs...) for (key,mo) in fm.matrixmodels)
 end
 
-function matrix(fm::FrictionModel{MODEL_IDS}, at::Atoms; kvargs...) where {MODEL_IDS}
+function matrix(fm::FrictionModel{MODEL_IDS}, at::AbstractSystem; kvargs...) where {MODEL_IDS}
     return NamedTuple{MODEL_IDS}(matrix(mo, at; kvargs...) for mo in values(fm.matrixmodels))
 end
 
@@ -182,7 +182,7 @@ function ACEfrictionCore.scaling(fm::FrictionModel{MODEL_IDS}, p::Int) where {MO
     return NamedTuple{MODEL_IDS}( ACEfrictionCore.scaling(mo,p) for mo in values(fm.matrixmodels))
 end
 
-function Gamma(M::MatrixModel, at::Atoms; kvargs...) 
+function Gamma(M::MatrixModel, at::AbstractSystem; kvargs...) 
     Σ_vec = Sigma(M, at; kvargs...) 
     return sum(_square(Σ,M) for Σ in Σ_vec)
 end
@@ -227,12 +227,12 @@ end
 
 
 # using Tullio
-# function Gamma(M::MatrixModel{VectorEquivariant}, at::Atoms; kvargs...) 
+# function Gamma(M::MatrixModel{VectorEquivariant}, at::AbstractSystem; kvargs...) 
 #     Σ_vec = Sigma(M, at; kvargs...) 
 #     return sum(@tullio Γ[i,j] :=  Σ[i,k] * transpose(Σ[j,k]) for Σ in Σ_vec)
 # end
 
-Sigma(M::MatrixModel, at::Atoms; kvargs...) = matrix(M, at; kvargs...) 
+Sigma(M::MatrixModel, at::AbstractSystem; kvargs...) = matrix(M, at; kvargs...) 
 
 function ACEfrictionCore.write_dict(fm::FrictionModel)
     return Dict("__id__" => "ACEfriction_FrictionModel",

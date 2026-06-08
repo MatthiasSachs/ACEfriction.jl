@@ -10,8 +10,11 @@ export NeighborCentered, AtomCentered
 export matrix, basis, params, nparams, set_params!, get_id
 
 using LinearAlgebra: Diagonal
-using JuLIP, ACEfrictionCore, ACEfrictionCore.ACEbonds
-using JuLIP: chemical_symbol
+using ACEfrictionCore, ACEfrictionCore.ACEbonds
+using AtomsBase: AbstractSystem, atomic_number, position
+using NeighbourLists: PairList, sites, neigs
+using Unitful: @u_str, ustrip
+import ACEfrictionCore: _chemical_symbol, _atomic_number
 using ACEfrictionCore: SymmetricBasis, LinearACEModel, evaluate
 using ACEfrictionCore.ACEbonds: bonds, env_cutoff
 using ACEfrictionCore.ACEbonds.BondCutoffs: EllipsoidCutoff
@@ -37,7 +40,11 @@ using ACEfriction.MatrixModels
 #import ACE.ACEbonds: SymmetricEllipsoidBondBasis
 include("../patches/acebonds_basisselectors.jl")
 using ACEfriction
-using JuLIP: AtomicNumber
+
+# JuLIP-free replacements for `at.Z` (species as Int atomic numbers) and JuLIP's
+# `sites(at, rcut)` (build a NeighbourLists.PairList, then iterate its sites).
+_species(at::AbstractSystem) = Int[ Int(atomic_number(at, i)) for i in 1:length(at) ]
+_sites(at::AbstractSystem, rcut::Real) = sites(PairList(at, rcut * u"Å"))
 
 ACEfrictionCore.write_dict(v::SVector{N,T}) where {N,T} = v
 ACEfrictionCore.read_dict(v::SVector{N,T}) where {N,T} = v
@@ -123,7 +130,8 @@ _T(::ACEfrictionCore.LinearACEModel{TB, SVector{N,T}, TEV}) where {TB,N,T,TEV} =
 
 _msort(z1,z2) = (z1<=z2 ? (z1,z2) : (z2,z1))
 # TODO: it may be better to base sorting on Atomic numbers instead of chemical_symbols
-_msort(z1::AtomicNumber,z2::AtomicNumber) = map(AtomicNumber,_msort(chemical_symbol(z1),chemical_symbol(z2)))
+# Species are plain Int atomic numbers; sort the pair by element symbol (as before).
+_msort(z1::Int,z2::Int) = map(_atomic_number,_msort(_chemical_symbol(z1),_chemical_symbol(z2)))
 
 NamedCollection = Union{AbstractDict,NamedTuple}
 
@@ -224,28 +232,28 @@ function ACEfrictionCore.read_dict(::Val{:ACEfriction_OffSiteModel}, D::Dict)
 end
 
 
-const OnSiteModels{O3S} = Dict{AtomicNumber,<:OnSiteModel{O3S}}
+const OnSiteModels{O3S} = Dict{Int,<:OnSiteModel{O3S}}
 #linmodel_size(models::OnSiteModels) = sum(length(mo.linmodel.basis) for mo in values(models))
 function ACEfrictionCore.write_dict(onsite::OnSiteModels)
     return Dict("__id__" => "ACEfriction_onsitemodels",
-                "zval" => Dict(string(chemical_symbol(z))=>ACEfrictionCore.write_dict(val) for (z,val) in onsite)
+                "zval" => Dict(string(_chemical_symbol(z))=>ACEfrictionCore.write_dict(val) for (z,val) in onsite)
                 )
 end
-function ACEfrictionCore.read_dict(::Val{:ACEfriction_onsitemodels}, D::Dict) 
-    return Dict(AtomicNumber(Symbol(z)) => ACEfrictionCore.read_dict(val) for (z,val) in D["zval"])  
+function ACEfrictionCore.read_dict(::Val{:ACEfriction_onsitemodels}, D::Dict)
+    return Dict(_atomic_number(Symbol(z)) => ACEfrictionCore.read_dict(val) for (z,val) in D["zval"])
 end
 
-const OffSiteModels{O3S,Z2S,CUTOFF} = Dict{Tuple{AtomicNumber, AtomicNumber},<:OffSiteModel{O3S,Z2S,CUTOFF}}
+const OffSiteModels{O3S,Z2S,CUTOFF} = Dict{Tuple{Int, Int},<:OffSiteModel{O3S,Z2S,CUTOFF}}
 #linmodel_size(models::OffSiteModels) = sum(length(mo.linmodel.basis) for mo in values(models))
 function ACEfrictionCore.write_dict(offsite::OffSiteModels)
     return Dict("__id__" => "ACEfriction_offsitemodels",
                 "vals" => Dict(i=>ACEfrictionCore.write_dict(val) for (i,val) in enumerate(values(offsite))),
-                "z1" => Dict(i=>string(chemical_symbol(zz[1])) for (i,zz) in enumerate(keys(offsite))),
-                "z2" => Dict(i=>string(chemical_symbol(zz[2])) for (i,zz) in enumerate(keys(offsite)))
+                "z1" => Dict(i=>string(_chemical_symbol(zz[1])) for (i,zz) in enumerate(keys(offsite))),
+                "z2" => Dict(i=>string(_chemical_symbol(zz[2])) for (i,zz) in enumerate(keys(offsite)))
     )
 end
-function ACEfrictionCore.read_dict(::Val{:ACEfriction_offsitemodels}, D::Dict) 
-    return Dict( (AtomicNumber(Symbol(z1)),AtomicNumber(Symbol(z2))) => ACEfrictionCore.read_dict(val)   for (z1,z2,val) in zip(values(D["z1"]),values(D["z2"]),values(D["vals"])))  
+function ACEfrictionCore.read_dict(::Val{:ACEfriction_offsitemodels}, D::Dict)
+    return Dict( (_atomic_number(Symbol(z1)),_atomic_number(Symbol(z2))) => ACEfrictionCore.read_dict(val)   for (z1,z2,val) in zip(values(D["z1"]),values(D["z2"]),values(D["vals"])))
 end
 const SiteModels = Union{OnSiteModels,OffSiteModels}
 
@@ -330,24 +338,24 @@ env_cutoff(models::SiteModels) = maximum(env_cutoff(mo.cutoff) for mo in values(
 # end
 
 
-ACEfrictionCore.ACEbonds.bonds(at::Atoms, offsite::OffSiteModels, site_filter) = ACEfrictionCore.ACEbonds.bonds(at, Dict(zz=> mo.cutoff for (zz,mo) in offsite), site_filter) 
-#ACEfrictionCore.ACEbonds.bonds(at::Atoms, curoff::EllipsoidCutoff, site_filter) = ACEfrictionCore.ACEbonds.bonds(at, cutoff, site_filter) 
+ACEfrictionCore.ACEbonds.bonds(at::AbstractSystem, offsite::OffSiteModels, site_filter) = ACEfrictionCore.ACEbonds.bonds(at, Dict(zz=> mo.cutoff for (zz,mo) in offsite), site_filter) 
+#ACEfrictionCore.ACEbonds.bonds(at::AbstractSystem, curoff::EllipsoidCutoff, site_filter) = ACEfrictionCore.ACEbonds.bonds(at, cutoff, site_filter) 
 
-# ACEfrictionCore.ACEbonds.bonds(at::Atoms, offsite::OffSiteModels, site_filter) = ACEfrictionCore.ACEbonds.bonds( at, envoffsite.env.rcutbond, 
+# ACEfrictionCore.ACEbonds.bonds(at::AbstractSystem, offsite::OffSiteModels, site_filter) = ACEfrictionCore.ACEbonds.bonds( at, envoffsite.env.rcutbond, 
 #     max(offsite.env.rcutbond*.5 + offsite.env.zcutenv, 
 #         sqrt((offsite.env.rcutbond*.5)^2+ offsite.env.rcutenv^2)),
 #                 (r, z, zzi, zzj) -> env_filter(r, z, offsite[_msort(zzi,zzj)].cutoff), site_filter )
 
-# ACEfrictionCore.ACEbonds.bonds(at::Atoms, offsite::OffSiteModels, site_filter) = ACEfrictionCore.ACEbonds.bonds( at, offsite.env.rcutbond, 
+# ACEfrictionCore.ACEbonds.bonds(at::AbstractSystem, offsite::OffSiteModels, site_filter) = ACEfrictionCore.ACEbonds.bonds( at, offsite.env.rcutbond, 
 #     max(offsite.env.rcutbond*.5 + offsite.env.zcutenv, 
 #         sqrt((offsite.env.rcutbond*.5)^2+ offsite.env.rcutenv^2)),
 #                 (r, z, i, j) -> env_filter(r, z), site_filter )
 struct SiteInds
-    onsite::Dict{AtomicNumber, UnitRange{Int}}
-    offsite::Dict{Tuple{AtomicNumber, AtomicNumber}, UnitRange{Int}}
+    onsite::Dict{Int, UnitRange{Int}}
+    offsite::Dict{Tuple{Int, Int}, UnitRange{Int}}
 end
-SiteInds(onsite::Dict{AtomicNumber, UnitRange{Int}}) = SiteInds(onsite, Dict{Tuple{AtomicNumber, AtomicNumber}, UnitRange{Int}}())
-SiteInds(offsite::Dict{Tuple{AtomicNumber, AtomicNumber}, UnitRange{Int}}) = SiteInds(Dict{AtomicNumber, UnitRange{Int}}(), offsite)
+SiteInds(onsite::Dict{Int, UnitRange{Int}}) = SiteInds(onsite, Dict{Tuple{Int, Int}, UnitRange{Int}}())
+SiteInds(offsite::Dict{Tuple{Int, Int}, UnitRange{Int}}) = SiteInds(Dict{Int, UnitRange{Int}}(), offsite)
 # function SiteInds(onsite::Dict{AtomicNumber, UnitRange{Int}}, offsite::Dict{Tuple{AtomicNumber, AtomicNumber}, UnitRange{Int}}, speciescoupling::SPSYM )
 #     _assert_offsite_keys(offsite,speciescoupling)
 #     new{SPSYM}(onsite, offsite)
@@ -361,11 +369,11 @@ function Base.length(inds::SiteInds, site::Symbol)
     return  (isempty(getfield(inds, site)) ? 0 : sum(length(irange) for irange in values(getfield(inds, site))))
 end
 
-function get_range(inds::SiteInds, z::AtomicNumber)
+function get_range(inds::SiteInds, z::Int)
     return inds.onsite[z]
 end
 
-function get_range(inds::SiteInds, zz::Tuple{AtomicNumber, AtomicNumber})
+function get_range(inds::SiteInds, zz::Tuple{Int, Int})
     return inds.offsite[zz]
 end
 
@@ -397,7 +405,7 @@ _val2block(::MatrixModel{MatrixEquivariant}, val) = val
 _n_rep(M::MatrixModel) = M.n_rep
 
 evaluate(sm::OnSiteModel, Rs, Zs) = evaluate(sm.linmodel, env_transform(Rs, Zs, sm.cutoff))
-evaluate(sm::OffSiteModel, rrij, zi::AtomicNumber, zj::AtomicNumber, Rs, Zs) = evaluate(sm.linmodel, env_transform(rrij, zi, zj, Rs, Zs, sm.cutoff)) 
+evaluate(sm::OffSiteModel, rrij, zi::Int, zj::Int, Rs, Zs) = evaluate(sm.linmodel, env_transform(rrij, zi, zj, Rs, Zs, sm.cutoff))
 
 
 _z2couplingToString(::NoZ2Sym) = "noz2sym"
@@ -567,8 +575,8 @@ function _get_basisinds(models::Dict{Z, TM}) where {Z,TM}
 end
 
 
-_get_model(calc::MatrixModel, zz::Tuple{AtomicNumber,AtomicNumber}) = calc.offsite[zz]
-_get_model(calc::MatrixModel, z::AtomicNumber) =  calc.onsite[z]
+_get_model(calc::MatrixModel, zz::Tuple{Int,Int}) = calc.offsite[zz]
+_get_model(calc::MatrixModel, z::Int) =  calc.onsite[z]
 
 
 
@@ -593,7 +601,7 @@ function ACEfrictionCore.params(mb::MatrixModel, site::Symbol; format=:matrix)
     return _transform(θ, Val(format), mb.n_rep)
 end
 
-function ACEfrictionCore.params(calc::MatrixModel, zzz::Union{AtomicNumber,Tuple{AtomicNumber,AtomicNumber}})
+function ACEfrictionCore.params(calc::MatrixModel, zzz::Union{Int,Tuple{Int,Int}})
     return params(_get_model(calc,zzz))
 end
 
@@ -606,7 +614,7 @@ function ACEfrictionCore.nparams(mb::MatrixModel, site::Symbol)
     return length(mb.inds, site)
 end
 
-function ACEfrictionCore.nparams(calc::MatrixModel, zzz::Union{AtomicNumber,Tuple{AtomicNumber,AtomicNumber}}) # make zzz
+function ACEfrictionCore.nparams(calc::MatrixModel, zzz::Union{Int,Tuple{Int,Int}}) # make zzz
     return nparams(_get_model(calc,zzz))
 end
 
@@ -630,7 +638,7 @@ end
 
 set_params!(model::SiteModel, θt) = set_params!(model.linmodel, θt)
 
-function ACEfrictionCore.set_params!(calc::MatrixModel, zzz::Union{AtomicNumber,Tuple{AtomicNumber,AtomicNumber}}, θ)
+function ACEfrictionCore.set_params!(calc::MatrixModel, zzz::Union{Int,Tuple{Int,Int}}, θ)
     return ACEfrictionCore.set_params!(_get_model(calc,zzz),θ)
 end
 
@@ -668,27 +676,27 @@ function _rev_transform(θ, n_rep)
 end
 
 
-function matrix(M::MatrixModel, at::Atoms;  filter=(_,_)->true, T=Float64) 
+function matrix(M::MatrixModel, at::AbstractSystem;  filter=(_,_)->true, T=Float64) 
     A = allocate_matrix(M, at, T)
     matrix!(M, at, A, filter)
     return A
 end
 
 # TODO: most matrix and basis allocation and assembly methods use bad practice. They should be rewritten for efficiency purposes. 
-function allocate_matrix(M::MatrixModel, at::Atoms,  T=Float64) 
+function allocate_matrix(M::MatrixModel, at::AbstractSystem,  T=Float64) 
     N = length(at)
     A = [spzeros(_block_type(M,T),N,N) for _ = 1:M.n_rep]
     return A
 end
 
-function basis(M::MatrixModel, at::Atoms; join_sites=false, filter=(_,_)->true, T=Float64) 
+function basis(M::MatrixModel, at::AbstractSystem; join_sites=false, filter=(_,_)->true, T=Float64) 
     B = allocate_B(M, at, T)
     basis!(B, M, at, filter)
     return (join_sites ? _join_sites(B.onsite,B.offsite) : B)
 end
 
 
-function allocate_B(M::MatrixModel, at::Atoms, T=Float64)
+function allocate_B(M::MatrixModel, at::AbstractSystem, T=Float64)
     N = length(at)
     B_onsite = [Diagonal( zeros(_block_type(M,T),N)) for _ = 1:length(M.inds,:onsite)]
     B_offsite = [spzeros(_block_type(M,T),N,N) for _ =  1:length(M.inds,:offsite)]

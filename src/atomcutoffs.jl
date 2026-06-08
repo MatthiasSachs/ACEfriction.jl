@@ -8,7 +8,7 @@ export SphericalCutoff, AbstractCutoff
 export env_filter, env_transform, env_cutoff
 
 using StaticArrays
-using JuLIP: AtomicNumber, chemical_symbol
+import ACEfrictionCore: _chemical_symbol, _atomic_number
 using ACEfrictionCore
 
 struct SphericalCutoff{T}
@@ -28,10 +28,10 @@ env_filter(r::StaticVector{3,T}, cutoff::SphericalCutoff) where {T<:Real} = (sum
     sc::DSphericalCutoff, filter=false)
 
 """
-function env_transform(Rs::AbstractVector{<: SVector}, 
-    Zs::AbstractVector{<: AtomicNumber}, 
+function env_transform(Rs::AbstractVector{<: SVector},
+    Zs::AbstractVector{<: Integer},
     sc::SphericalCutoff)
-    cfg =  [ ACEfrictionCore.State(rr = r/sc.rcut, mu = chemical_symbol(z))  for (r,z) in zip( Rs,Zs) ] |> ACEConfig
+    cfg =  [ ACEfrictionCore.State(rr = r/sc.rcut, mu = _chemical_symbol(z))  for (r,z) in zip( Rs,Zs) ] |> ACEConfig
     return cfg
 end
 """
@@ -41,14 +41,14 @@ end
     sc::DSphericalCutoff, filter=false)
 
 """
-function env_transform(j::Int, 
-    Rs::AbstractVector{<: SVector}, 
-    Zs::AbstractVector{<: AtomicNumber}, 
+function env_transform(j::Int,
+    Rs::AbstractVector{<: SVector},
+    Zs::AbstractVector{<: Integer},
     dse::SphericalCutoff)
     # Y0 = State( rr = rrij, mube = :bond) # Atomic species of bond atoms does not matter at this stage.
     # cfg = Vector{typeof(Y0)}(undef, length(Rs)+1)
     # cfg[1] = Y0
-    cfg = [State( rr = Rs[l]/dse.rcut, mube = (l == j ? :bond : chemical_symbol(Zs[l])) ) for l = eachindex(Rs)] |> ACEConfig
+    cfg = [State( rr = Rs[l]/dse.rcut, mube = (l == j ? :bond : _chemical_symbol(Zs[l])) ) for l = eachindex(Rs)] |> ACEConfig
     return cfg 
 end
 
