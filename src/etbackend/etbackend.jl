@@ -34,6 +34,12 @@ include("friction_models.jl")
 # native ET bond basis + Z2                                        [Phase 4]
 include("bondbasis.jl")
 
+# bond geometry: ellipsoid cutoff, env transform, bond iterator    [Phase 6]
+include("bond_env.jl")
+
+# flattened offsite model + system-level PWC friction model        [Phase 6]
+include("offsite_models.jl")
+
 # write_dict / read_dict (recipe-based) for basis + models         [Phase 5]
 include("serialization.jl")
 
