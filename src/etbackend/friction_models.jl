@@ -39,6 +39,40 @@ end
 
 n_rep(::ETOnsiteOnlyModel{NR}) where {NR} = NR
 
+# per-species basis-function index ranges (SiteInds-like), and total length
+function _onsite_ranges(M::ETOnsiteOnlyModel)
+   ranges = Dict{Int, UnitRange{Int}}(); off = 0
+   for (z, m) in M.onsite
+      ranges[z] = (off + 1):(off + length(m.basis)); off += length(m.basis)
+   end
+   return ranges, off
+end
+
+basis_length(M::ETOnsiteOnlyModel) = _onsite_ranges(M)[2]
+
+"""
+    basis(M, at) -> Vector{Diagonal{SMatrix{3,3}}}
+
+Un-contracted basis: `B[k]` is a block-diagonal matrix whose `i`-th diagonal block
+is the `k`-th basis function evaluated at atom `i` (nonzero only for atoms whose
+species owns basis index `k`). This is the array `flux_assemble` consumes; note
+`sum_k c[k][r]·B[k] == Σ[r]`.
+"""
+function basis(M::ETOnsiteOnlyModel, at::AbstractSystem)
+   Z = _species_vec(at); N = length(at)
+   Z3 = SMatrix{3,3,Float64,9}
+   ranges, Ktot = _onsite_ranges(M)
+   B = [ Diagonal(zeros(Z3, N)) for _ in 1:Ktot ]
+   for (i, neigs, Rs) in _sites_iter(at, M.rcut)
+      (haskey(M.onsite, Z[i]) && !isempty(neigs)) || continue
+      Bi = evaluate(M.onsite[Z[i]].basis, Rs, Z[neigs])
+      for (k, b) in zip(ranges[Z[i]], Bi)
+         B[k].diag[i] = b
+      end
+   end
+   return B
+end
+
 """
     sigma(M, at) -> Vector{Vector{SMatrix{3,3}}}
 

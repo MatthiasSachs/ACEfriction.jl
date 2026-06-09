@@ -14,6 +14,7 @@ const _ETB_TESTS = [
    "test_bondbasis.jl",
    "test_selection.jl",
    "test_offsite.jl",
+   "test_basis_fit.jl",
    "test_serialization.jl",
    "test_equivalence.jl",        # also exercises the old (ACEfrictionCore) backend
 ]

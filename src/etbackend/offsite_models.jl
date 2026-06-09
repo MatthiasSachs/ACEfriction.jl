@@ -126,6 +126,50 @@ function sigma(M::ETPWCModel{NR, TM, <:SphericalCutoff}, at::AbstractSystem) whe
    return Σ
 end
 
+# per-species-pair basis-function index ranges, and total length
+function _offsite_ranges(M::ETPWCModel)
+   ranges = Dict{Tuple{Int,Int}, UnitRange{Int}}(); off = 0
+   for (zz, m) in M.offsite
+      ranges[zz] = (off + 1):(off + length(m.basis)); off += length(m.basis)
+   end
+   return ranges, off
+end
+basis_length(M::ETPWCModel) = _offsite_ranges(M)[2]
+
+"""
+    basis(M, at) -> Vector{Matrix{SMatrix{3,3}}}
+
+Un-contracted offsite basis: `B[k][i,j]` is the `k`-th basis function on bond
+(i,j). `sum_k c[k][r]·B[k] == Σ[r]`.
+"""
+function basis(M::ETPWCModel{NR, TM, <:EllipsoidCutoff}, at::AbstractSystem) where {NR, TM}
+   Z = _species_vec(at); N = length(at); Z3 = SMatrix{3,3,Float64,9}
+   ranges, Ktot = _offsite_ranges(M)
+   B = [ fill(zero(Z3), N, N) for _ in 1:Ktot ]
+   for (i, j, rrij, Js, Rs, Zs) in et_bonds(at, M.cutoff)
+      zz = _zz_of(Z, i, j); haskey(M.offsite, zz) || continue
+      Bij = evaluate_basis(M.offsite[zz], rrij, Rs, Zs)
+      for (k, b) in zip(ranges[zz], Bij); B[k][i, j] = b; end
+   end
+   return B
+end
+
+function basis(M::ETPWCModel{NR, TM, <:SphericalCutoff}, at::AbstractSystem) where {NR, TM}
+   Z = _species_vec(at); N = length(at); Z3 = SMatrix{3,3,Float64,9}
+   ranges, Ktot = _offsite_ranges(M)
+   B = [ fill(zero(Z3), N, N) for _ in 1:Ktot ]
+   for (i, neigs, Rs) in _sites_iter(at, M.cutoff.rcut)
+      isempty(neigs) && continue
+      Zs = Z[neigs]
+      for (j_loc, j) in enumerate(neigs)
+         zz = _zz_of(Z, i, j); haskey(M.offsite, zz) || continue
+         Bij = evaluate_basis(M.offsite[zz], j_loc, Rs, Zs)
+         for (k, b) in zip(ranges[zz], Bij); B[k][i, j] += b; end
+      end
+   end
+   return B
+end
+
 """
     gamma(M, at) -> Matrix{SMatrix{3,3}}  (N×N block friction matrix Γ = Σ Σᵀ)
 """
