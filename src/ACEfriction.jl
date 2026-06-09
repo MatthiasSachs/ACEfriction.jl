@@ -1,8 +1,12 @@
 module ACEfriction
 
+# EquivariantTensors-based ACE backend (replaces ACEfrictionCore). Included first
+# so the cutoffs / matrix models / constructors can build on it.
+include("./etbackend/etbackend.jl")
+
 # utility functions for conversion of arrays, manipulation of bases and generation of bases for bond environments
 include("./utils/utils.jl")
-# utility functions for importing and internally storing data of friction tensors/matrices 
+# utility functions for importing and internally storing data of friction tensors/matrices
 include("./datautils.jl")
 
 include("./atomcutoffs.jl")
@@ -24,17 +28,17 @@ import ACEfriction.DataUtils: write_dict, read_dict, load_h5fdata, save_h5fdata
 export write_dict, read_dict, load_h5fdata, save_h5fdata
 
 # Re-export AtomsBase / AtomsBuilder so existing scripts can build configurations
-# (replacing JuLIP's `Atoms` / `bulk` / `rattle!`).
 import AtomsBase: FlexibleSystem, FastSystem
 export FlexibleSystem, FastSystem
 import AtomsBuilder: bulk, rattle!
 export bulk, rattle!
 
-import ACEfrictionCore.ACEbonds: EllipsoidCutoff
+# cutoffs + equivariant property markers now come from the ET backend
+import ACEfriction.ETBackend: EllipsoidCutoff, SphericalCutoff
 export EllipsoidCutoff, SphericalCutoff
 
-import ACEfrictionCore: Invariant, EuclideanVector, EuclideanMatrix
-export Invariant, EuclideanVector, EuclideanMatrix
+import ACEfriction.ETBackend: Invariant, EuclideanVector, EuclideanMatrix, SymmetricEuclideanMatrix
+export Invariant, EuclideanVector, EuclideanMatrix, SymmetricEuclideanMatrix
 
 import ACEbase.FIO: save_dict, load_dict
 export save_dict, load_dict
