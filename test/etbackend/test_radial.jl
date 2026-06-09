@@ -58,3 +58,24 @@ using .ETBackend
 
    println("  nR=$nR  NZ=$NZ  nchannels=$(ETBackend.nchannels(rb))")
 end
+
+@testset "r0_ratio/rin_ratio scale-free equivalence" begin
+   # the radial basis depends on r only through r/rcut: a neighbour at distance r
+   # in a spherical env of radius R must give the same radial values as the same
+   # neighbour normalised to the unit sphere (r/R) with rcut=1. This is exactly
+   # why r0_ratio/rin_ratio mean the same thing for onsite (physical rcut) and
+   # offsite (rcut=1 after the ellipsoid->sphere transform).
+   R = 5.0
+   rb_abs  = ETBackend.RnYlm_radial([:Cu]; rcut = R,   maxn = 4, r0_ratio = 0.4, rin_ratio = 0.04)
+   rb_norm = ETBackend.RnYlm_radial([:Cu]; rcut = 1.0, maxn = 4, r0_ratio = 0.4, rin_ratio = 0.04)
+   for r in range(0.05*R, 0.99*R; length = 20)
+      @test ETBackend._rn(rb_abs, r) ≈ ETBackend._rn(rb_norm, r / R)
+   end
+
+   # defaults reproduce the old backend's r0_ratio=0.4, rin_ratio=0.04
+   rb_def = ETBackend.RnYlm_radial([:Cu]; rcut = R, maxn = 4)
+   @test ETBackend._rn(rb_def, 2.0) ≈ ETBackend._rn(rb_abs, 2.0)
+   # rin = rin_ratio*rcut: values for r < rin are clamped (transform constant there)
+   @test ETBackend._rn(rb_abs, 0.04*R) ≈ ETBackend._rn(rb_abs, 0.02*R)
+   println("  scale-free r/rcut equivalence OK (onsite rcut=$R ≡ offsite rcut=1)")
+end

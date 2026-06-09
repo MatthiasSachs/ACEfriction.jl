@@ -55,6 +55,20 @@ function _property_from_str(s::AbstractString)
    error("unknown property string $s")
 end
 
+# ----------------------------------------------------------------------
+# Public-facing property aliases (the names ACEfriction exports). Backed by the ET
+# markers; the legacy `EuclideanMatrix(Float64)` call form is accepted (the element
+# type argument is retained only for backward compatibility and is a no-op).
+const Invariant               = ETInvariant
+const EuclideanVector         = ETVector
+const EuclideanMatrix         = ETMatrix
+const SymmetricEuclideanMatrix = ETSymMatrix
+
+ETInvariant(::Type) = ETInvariant()
+ETVector(::Type)    = ETVector()
+ETMatrix(::Type)    = ETMatrix()
+ETSymMatrix(::Type) = ETSymMatrix()
+
 # The Cartesian block type produced for each property.
 block_type(::ETInvariant, T = Float64) = SMatrix{3, 3, T, 9}
 block_type(::ETVector,    T = Float64) = SVector{3, T}

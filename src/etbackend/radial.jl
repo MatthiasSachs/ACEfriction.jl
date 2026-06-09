@@ -168,17 +168,27 @@ function evaluate_batched(b::SpeciesRadialBasis, rs::AbstractVector, Zs::Abstrac
 end
 
 """
-    RnYlm_radial(species; rcut, maxn, rin, r0, pin, pcut, p, q, polys)
+    RnYlm_radial(species; rcut, maxn, r0_ratio, rin_ratio, pin, pcut, p, q, polys)
 
 Convenience constructor for a `SpeciesRadialBasis` mirroring ACEfrictionCore's
 `RnYlm_1pbasis` radial part: Agnesi transform on `[rin, rcut]`, Legendre
 polynomials of length `maxn+1`, and a `(pin, pcut)` x-space envelope.
+
+The "typical" radius `r0` and inner cutoff `rin` are given as **scale-free
+ratios** of `rcut` (matching ACEfrictionCore's `r0_ratio`/`rin_ratio`):
+`r0 = r0_ratio * rcut`, `rin = rin_ratio * rcut`. This keeps the parameterisation
+identical for spherical (onsite, `rcut` = physical Å) and ellipsoid (offsite,
+`rcut = 1.0` after the ellipsoid→sphere transform) environments: in both cases the
+radial basis sees its argument normalised by its own `rcut`, so `r0_ratio` /
+`rin_ratio` mean the same thing. Defaults `0.4` / `0.04` match the old backend.
 """
 function RnYlm_radial(species;
             rcut, maxn::Integer,
-            rin = 0.0, r0 = 0.4 * rcut,
+            r0_ratio = 0.4, rin_ratio = 0.04,
             pin = 2, pcut = 2, p = 2, q = 2,
             polys = P4ML.legendre_basis(maxn + 1))
+   r0 = r0_ratio * rcut
+   rin = rin_ratio * rcut
    trans = agnesi_transform(r0, rcut, p, q; rin = rin)
    env = PolyEnvelope2sX(-1.0, 1.0, pin, pcut)
    zlist = Tuple(_atomic_number(s) for s in species)

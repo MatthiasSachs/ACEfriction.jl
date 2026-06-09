@@ -27,6 +27,36 @@ env_cutoff(ec::EllipsoidCutoff) =
       max(ec.rcutbond*0.5 + ec.zcutenv, sqrt(ec.rcutenv^2 + (0.5*ec.rcutbond)^2))
 env_filter(r, z, ec::EllipsoidCutoff) = ((z/ec.zcutenv)^2 + (r/ec.rcutenv)^2 <= 1)
 
+"""
+    SphericalCutoff(rcut)
+
+Spherical pair-environment cutoff for the *atom-centred* offsite model: the bond
+environment of a pair (i,j) is the set of neighbours of atom `i` within `rcut`,
+with `j` itself the bond partner. (Cf. ACEfrictionCore `SphericalCutoff`.)
+"""
+struct SphericalCutoff{T}
+   rcut::T
+end
+env_cutoff(sc::SphericalCutoff) = sc.rcut
+
+"""
+    spherical_bond_transform(j_loc, Rs, Zs, sc) -> (r̂bond, Rs_env, Zs_env)
+
+For the spherical offsite model: bond direction `Rs[j_loc]/rcut`, environment = the
+*other* neighbours of `i` (each `/rcut`). Mirrors ACEfrictionCore's
+`env_transform(j, Rs, Zs, ::SphericalCutoff)`.
+"""
+function spherical_bond_transform(j_loc::Int, Rs::AbstractVector{<:SVector{3}},
+                                  Zs::AbstractVector, sc::SphericalCutoff)
+   rbond = Rs[j_loc] / sc.rcut
+   Rs_env = SVector{3,Float64}[]; Zs_env = Int[]
+   for l in eachindex(Rs)
+      l == j_loc && continue
+      push!(Rs_env, Rs[l] / sc.rcut); push!(Zs_env, Zs[l])
+   end
+   return rbond, Rs_env, Zs_env
+end
+
 # skewed Householder reflection mapping the ellipsoid to the unit sphere
 function _skew_householder(rr0::SVector{3}, zc::T, rc::T) where {T<:Real}
    r02 = sum(abs2, rr0)

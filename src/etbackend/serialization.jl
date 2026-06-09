@@ -13,23 +13,35 @@ read_dict(D::AbstractDict) = read_dict(Val(Symbol(D["__id__"])), D)
 
 # ---- site basis (onsite or bond) : rebuild from recipe ----
 
+# reconstruct the selection kwargs (weight, p_sel, per-species dicts) from a recipe
+function _selection_kwargs(sel::AbstractDict)
+   w = sel["weight"]
+   return (weight = Dict(:n => w["n"], :l => w["l"]),
+           p_sel = sel["p_sel"],
+           species_weight_cat = Dict(sel["weight_cat"]),
+           species_minorder_dict = Dict(sel["minorder_dict"]),
+           species_maxorder_dict = Dict(sel["maxorder_dict"]))
+end
+
 """rebuild an `ETFrictionSiteBasis` from a serialized construction recipe."""
 function rebuild_basis(recipe::AbstractDict)
    prop = _property_from_str(recipe["property"])
    species = Int.(recipe["species"])
    radial = Dict(Symbol(k) => v for (k, v) in recipe["radial"])
+   sel = _selection_kwargs(recipe["selection"])
    kind = recipe["kind"]
    if kind == "onsite"
       return onsite_basis(prop, species;
                rcut = recipe["rcut"], maxorder = recipe["maxorder"],
                maxdeg = recipe["maxdeg"], maxl = recipe["maxl"],
-               wn = recipe["wn"], wl = recipe["wl"], radial...)
+               sel..., radial...)
    elseif kind == "bond"
       return bond_basis(prop, species;
                z2sym = Symbol(recipe["z2sym"]),
                rcut = recipe["rcut"], maxorder = recipe["maxorder"],
                maxdeg = recipe["maxdeg"], maxl = recipe["maxl"],
-               wn = recipe["wn"], wl = recipe["wl"], radial...)
+               bond_weight = recipe["selection"]["bond_weight"],
+               sel..., radial...)
    else
       error("unknown basis recipe kind = $kind")
    end

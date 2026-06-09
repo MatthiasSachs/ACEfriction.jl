@@ -40,25 +40,55 @@ function _wr_combinations(xs, k)
    return out
 end
 
+# normalize a species-keyed Dict (symbols or atomic numbers) to Int atomic numbers
+_int_keyed(d::AbstractDict) = Dict{Int,Any}(_atomic_number(k) => v for (k, v) in d)
+_wn_wl(weight::AbstractDict) = (Float64(get(weight, :n, 1.0)), Float64(get(weight, :l, 1.0)))
+
 """
-    generate_mb_spec(rbasis, maxl; maxorder, maxdeg, wn, wl)
+    generate_mb_spec(rbasis, maxl; maxorder, maxdeg, weight, p,
+                     weight_cat, minorder_dict, maxorder_dict)
 
 Generate the many-body `(n=ñ, l)` specification over the radial channels of
-`rbasis` (a `SpeciesRadialBasis`) and angular degrees `0:maxl`.
+`rbasis` (a `SpeciesRadialBasis`) and angular degrees `0:maxl`, reproducing
+ACEfrictionCore's `CategorySparseBasis` selection:
+
+- per-factor weighted degree `deg(b) = (wₙ·n + wₗ·l) · weight_cat[species(b)]`
+  (`weight = Dict(:n=>…, :l=>…)`);
+- product level `level(bb) = ‖[deg(b) for b in bb]‖_p`, admissible iff `≤ maxdeg`;
+- correlation order `≤ maxorder`, plus per-species limits
+  `minorder_dict[z] ≤ #{factors of species z} ≤ maxorder_dict[z]`.
+
+`weight_cat`/`minorder_dict`/`maxorder_dict` may be keyed by element symbol or
+atomic number.
 """
 function generate_mb_spec(rbasis::SpeciesRadialBasis, maxl::Integer;
                           maxorder::Integer, maxdeg::Real,
-                          wn::Real = 1.0, wl::Real = 1.0)
-   degn(ñ) = channel_info(rbasis, ñ).n - 1        # 0-based poly degree
-   fdeg(b) = wn * degn(b.n) + wl * b.l
+                          weight = Dict(:n => 1.0, :l => 1.0), p::Real = 1,
+                          weight_cat::AbstractDict = Dict{Int,Float64}(),
+                          minorder_dict::AbstractDict = Dict{Int,Int}(),
+                          maxorder_dict::AbstractDict = Dict{Int,Int}())
+   wn, wl = _wn_wl(weight)
+   wcat = _int_keyed(weight_cat)
+   mnd = _int_keyed(minorder_dict); mxd = _int_keyed(maxorder_dict)
+   zof(ñ) = channel_info(rbasis, ñ).z
+   degn(ñ) = channel_info(rbasis, ñ).n - 1
+   fdeg(b) = (wn * degn(b.n) + wl * b.l) * Float64(get(wcat, zof(b.n), 1.0))
+   level(bb) = isempty(bb) ? 0.0 : norm(Float64[fdeg(b) for b in bb], p)
+   function ok_orders(bb)
+      for (z, mn) in mnd
+         count(b -> zof(b.n) == z, bb) >= mn || return false
+      end
+      for (z, mx) in mxd
+         count(b -> zof(b.n) == z, bb) <= mx || return false
+      end
+      return true
+   end
    factors = _NL[ (n = ñ, l = l)
                   for ñ in 1:nchannels(rbasis) for l in 0:maxl
-                  if wn * degn(ñ) + wl * l <= maxdeg ]
+                  if fdeg((n = ñ, l = l)) <= maxdeg ]
    spec = Vector{_NL}[]
-   for k in 1:maxorder
-      for bb in _wr_combinations(factors, k)
-         sum(fdeg(b) for b in bb) <= maxdeg && push!(spec, sort(bb))
-      end
+   for k in 1:maxorder, bb in _wr_combinations(factors, k)
+      (level(bb) <= maxdeg && ok_orders(bb)) && push!(spec, sort(bb))
    end
    return unique(spec)
 end
@@ -87,24 +117,43 @@ Base.length(b::ETFrictionSiteBasis) = sum(b.tensor.lens)
 _o3property(b::ETFrictionSiteBasis) = b.property
 block_type(b::ETFrictionSiteBasis, T = Float64) = block_type(b.property, T)
 
+# build a serializable recipe Dict for the selection controls
+function _selection_recipe(weight, p_sel, weight_cat, minorder_dict, maxorder_dict)
+   wn, wl = _wn_wl(weight)
+   return Dict{String, Any}(
+      "weight" => Dict("n" => wn, "l" => wl), "p_sel" => Float64(p_sel),
+      "weight_cat" => Dict{Int,Any}(_int_keyed(weight_cat)),
+      "minorder_dict" => Dict{Int,Any}(_int_keyed(minorder_dict)),
+      "maxorder_dict" => Dict{Int,Any}(_int_keyed(maxorder_dict)))
+end
+
 """
-    onsite_basis(property, species; rcut, maxorder, maxdeg, maxl, wn, wl, radial_kwargs...)
+    onsite_basis(property, species; rcut, maxorder, maxdeg, maxl,
+                 weight, p_sel, species_weight_cat,
+                 species_minorder_dict, species_maxorder_dict, radial_kwargs...)
 
 Construct an onsite ET friction site basis for the given `property` and `species`
 (list of element symbols / atomic numbers). Mirrors the inputs of
-ACEfrictionCore's `onsite_linbasis`.
+ACEfrictionCore's `onsite_linbasis`, including the `CategorySparseBasis` selection
+controls (`weight=Dict(:n,:l)`, `p_sel`, per-species `species_weight_cat` /
+`species_minorder_dict` / `species_maxorder_dict`).
 """
 function onsite_basis(property::ETProperty, species;
                       rcut::Real, maxorder::Integer, maxdeg::Real,
                       maxl::Integer = Int(floor(maxdeg)),
-                      wn::Real = 1.0, wl::Real = 1.0,
+                      weight = Dict(:n => 1.0, :l => 1.0), p_sel::Real = 1,
+                      species_weight_cat::AbstractDict = Dict{Int,Float64}(),
+                      species_minorder_dict::AbstractDict = Dict{Int,Int}(),
+                      species_maxorder_dict::AbstractDict = Dict{Int,Int}(),
                       radial_kwargs...)
    rbasis = RnYlm_radial(species; rcut = rcut, maxn = Int(floor(maxdeg)),
                          radial_kwargs...)
    ybasis = P4ML.real_sphericalharmonics(maxl)
    Ylm_spec = P4ML.natural_indices(ybasis)
-   mb_spec = generate_mb_spec(rbasis, maxl; maxorder = maxorder,
-                              maxdeg = maxdeg, wn = wn, wl = wl)
+   mb_spec = generate_mb_spec(rbasis, maxl; maxorder = maxorder, maxdeg = maxdeg,
+                  weight = weight, p = p_sel, weight_cat = species_weight_cat,
+                  minorder_dict = species_minorder_dict,
+                  maxorder_dict = species_maxorder_dict)
    tensor = ET.sparse_equivariant_tensors(;
             LL = output_LL(property), mb_spec = mb_spec,
             Rnl_spec = radial_spec(rbasis), Ylm_spec = Ylm_spec, basis = real)
@@ -115,7 +164,8 @@ function onsite_basis(property::ETProperty, species;
       "species" => [ _atomic_number(s) for s in species ],
       "rcut" => Float64(rcut), "maxorder" => Int(maxorder),
       "maxdeg" => Float64(maxdeg), "maxl" => Int(maxl),
-      "wn" => Float64(wn), "wl" => Float64(wl),
+      "selection" => _selection_recipe(weight, p_sel, species_weight_cat,
+                                       species_minorder_dict, species_maxorder_dict),
       "radial" => Dict{String, Any}(string(k) => v for (k, v) in radial_kwargs))
    meta = Dict{String, Any}("recipe" => recipe)
    return ETFrictionSiteBasis(property, rbasis, ybasis, tensor, out, meta)

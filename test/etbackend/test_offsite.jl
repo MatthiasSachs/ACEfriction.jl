@@ -41,3 +41,30 @@ Random.seed!(9)
            "min eig=$(round(minimum(eigvals(Symmetric(Γ))), sigdigits=3))  ",
            "max eig=$(round(maximum(eigvals(Symmetric(Γ))), sigdigits=3))")
 end
+
+@testset "ETPWCModel (spherical offsite, end-to-end Γ)" begin
+   sc = ETBackend.SphericalCutoff(4.0)
+   nrep = 2
+   bbasis = ETBackend.bond_basis(ETBackend.ETMatrix(), [:Cu];
+               z2sym = :none, rcut = 1.0, maxorder = 2, maxdeg = 4, maxl = 2)
+   om = ETBackend.ETOffsiteModel(bbasis, nrep, sc)
+   ETBackend.set_params!(om, [ 0.1 .* @SVector(randn(nrep)) for _ in 1:length(bbasis) ])
+
+   M = ETBackend.ETPWCModel(Dict((29, 29) => om); id = :equ_off_sph)
+   at = rattle!(bulk(:Cu) * (2, 2, 2), 0.2)
+   N = length(at)
+
+   Σ = ETBackend.sigma(M, at)
+   @test length(Σ) == nrep
+   nnz = sum(count(!iszero, norm.(Σ[r])) for r in 1:nrep)
+   @test nnz > 0
+   @test all(iszero(Σ[r][i, i]) for r in 1:nrep for i in 1:N)   # offsite only
+
+   Γ = ETBackend.gamma_dense(M, at)
+   @test size(Γ) == (3N, 3N)
+   @test norm(Γ - Γ') < 1e-9
+   @test minimum(eigvals(Symmetric(Γ))) > -1e-9                  # PSD
+
+   println("  [spherical] N=$N  #nonzero Σ-blocks=$nnz  ",
+           "min eig=$(round(minimum(eigvals(Symmetric(Γ))), sigdigits=3))")
+end
