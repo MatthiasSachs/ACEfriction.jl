@@ -5,12 +5,12 @@ using ACEfriction.MatrixModels
 import ACEfriction.MatrixModels: basis, matrix
 using LinearAlgebra
 using AtomsBase: AbstractSystem
-using ACEfrictionCore, Base
+using Base
 
 using ACEfriction
-import ACEfrictionCore: params, nparams, set_params!
+import ACEfriction.MatrixModels: params, nparams, set_params!, scaling
 import ACEfriction.MatrixModels: set_zero!, randf
-import ACEfrictionCore: scaling, write_dict, read_dict
+import ACEfriction.ETBackend: write_dict, read_dict
 
 export write_dict, read_dict, params, nparams, set_params!
 export params, nparams, set_params!, get_ids
@@ -162,7 +162,7 @@ end
 Returns the total number of scalar parameters of all matrix models in the FrictionModel object.
 """
 function nparams(fm::FrictionModel{MODEL_IDS}) where {MODEL_IDS}
-    return sum(nparams(fm.matrixmodels[s]) for s in model_ids)
+    return sum(nparams(fm.matrixmodels[s]) for s in MODEL_IDS)
 end
 
 """
@@ -170,16 +170,16 @@ end
 
 Sets the parameters of all matrix models in the FrictionModel object whose ID is contained in `θ::NamedTuple` to the values specified therein.
 """
-function ACEfrictionCore.set_params!(fm::FrictionModel, θ::NamedTuple)
-    for s in keys(θ) 
-        ACEfrictionCore.set_params!(fm.matrixmodels[s], θ[s])
+function set_params!(fm::FrictionModel, θ::NamedTuple)
+    for s in keys(θ)
+        set_params!(fm.matrixmodels[s], θ[s])
     end
 end
 
 get_ids(::FrictionModel{MODEL_IDS})  where {MODEL_IDS} = MODEL_IDS
 
-function ACEfrictionCore.scaling(fm::FrictionModel{MODEL_IDS}, p::Int) where {MODEL_IDS}
-    return NamedTuple{MODEL_IDS}( ACEfrictionCore.scaling(mo,p) for mo in values(fm.matrixmodels))
+function scaling(fm::FrictionModel{MODEL_IDS}, p::Int) where {MODEL_IDS}
+    return NamedTuple{MODEL_IDS}( scaling(mo,p) for mo in values(fm.matrixmodels))
 end
 
 function Gamma(M::MatrixModel, at::AbstractSystem; kvargs...) 
@@ -234,11 +234,11 @@ end
 
 Sigma(M::MatrixModel, at::AbstractSystem; kvargs...) = matrix(M, at; kvargs...) 
 
-function ACEfrictionCore.write_dict(fm::FrictionModel)
+function write_dict(fm::FrictionModel)
     return Dict("__id__" => "ACEfriction_FrictionModel",
-          "matrixmodels" => Dict(id=>write_dict(fm.matrixmodels[id]) for id in keys(fm.matrixmodels)))        
-end 
-function ACEfrictionCore.read_dict(::Val{:ACEfriction_FrictionModel}, D::Dict)
+          "matrixmodels" => Dict(id=>write_dict(fm.matrixmodels[id]) for id in keys(fm.matrixmodels)))
+end
+function read_dict(::Val{:ACEfriction_FrictionModel}, D::Dict)
     matrixmodels = NamedTuple(Dict(Symbol(id)=>read_dict(val) for (id,val) in D["matrixmodels"]))
     return FrictionModel(matrixmodels)
 end

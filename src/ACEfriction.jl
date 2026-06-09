@@ -18,10 +18,14 @@ include("./matrixmodelsutils.jl")
 import ACEfriction.FrictionModels: FrictionModel, Gamma, Sigma
 export Gamma, Sigma, FrictionModel
 
+import ACEfriction.FrictionModels: params, nparams, set_params!, scaling, get_ids, basis, matrix, randf
+export params, nparams, set_params!, scaling, get_ids, basis, matrix, randf
+
 import ACEfriction.FrictionFit: FrictionData, FluxFrictionModel, flux_assemble
 export FrictionData, FluxFrictionModel, flux_assemble
 
-import ACEfriction.MatrixModels: RWCMatrixModel, mbdpd_matrixmodel, OnsiteOnlyMatrixModel, PWCMatrixModel
+import ACEfriction.MatrixModels: RWCMatrixModel, OnsiteOnlyMatrixModel, PWCMatrixModel
+# mbdpd_matrixmodel is defined at top level in matrixmodelsutils.jl
 export RWCMatrixModel, mbdpd_matrixmodel, OnsiteOnlyMatrixModel, PWCMatrixModel
 
 import ACEfriction.DataUtils: write_dict, read_dict, load_h5fdata, save_h5fdata
