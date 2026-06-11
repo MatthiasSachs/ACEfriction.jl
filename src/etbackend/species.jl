@@ -16,7 +16,7 @@ _chemical_symbol(s::ChemicalSpecies) = Symbol(s)
 
 # element Symbol / ChemicalSpecies -> Int atomic number (e.g. :Cu -> 29).
 # Route Symbols through ChemicalSpecies (not the bare `atomic_number(::Symbol)` dict
-# lookup) so dummy/non-element species such as `:X` (Z=0, used by DPD models) resolve.
+# lookup) so dummy/non-element species such as `:X` (Z=0) resolve.
 _atomic_number(z::Integer) = Int(z)
 _atomic_number(s::Symbol) = Int(AtomsBase.atomic_number(ChemicalSpecies(s)))
 _atomic_number(s::ChemicalSpecies) = Int(AtomsBase.atomic_number(s))

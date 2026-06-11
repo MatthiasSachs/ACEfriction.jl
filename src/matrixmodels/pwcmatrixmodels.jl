@@ -180,7 +180,7 @@ function randf(::PWCMatrixModel, Σ::SparseMatrixCSC{SMatrix{3,3,T,9}, TI}) wher
     return vec(sum(Σ .* R, dims=1))
 end
 
-# vector-equivariant (DPD / momentum-preserving) case: Σ blocks are SVector{3} and the
+# vector-equivariant (momentum-preserving) case: Σ blocks are SVector{3} and the
 # pairwise noise is scalar, symmetrised over the (i,j) pair.
 function randf(::PWCMatrixModel, Σ::SparseMatrixCSC{SVector{3,T}, TI}) where {T<:Real, TI<:Int}
     I, J, _ = findnz(Σ); Rnz = randn(T, length(J))

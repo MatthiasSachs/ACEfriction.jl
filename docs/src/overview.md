@@ -54,17 +54,12 @@ A friction model is a sum over one or more *matrix models*. Each matrix model sp
   ```
   (The friction tensor ${\bm \Gamma}$ nevertheless acquires a non-zero onsite diagonal; see the pair-wise assembly below.)
 - **`RWCMatrixModel`** (row-wise coupling) — full matrix with an *independently fitted* onsite block ${\bm \Sigma}_{ii}$ plus atom-centred off-diagonal blocks ${\bm \Sigma}_{ij}$ ($i\neq j$).
-- **`ACDPDMatrixModel`** (atom-centred, momentum-conserving) — full matrix with off-diagonal blocks as in `RWCMatrixModel`, but a *derived* diagonal that makes each column of ${\bm \Sigma}$ sum to zero:
-  ```math
-  {\bm \Sigma}_{ij} = \begin{cases} -\sum_{k\neq i}{\bm \Sigma}_{ki}, & j = i,\\[2pt] {\bm \Sigma}_{ij}, & i\neq j. \end{cases}
-  ```
-  Since $\sum_{i}{\bm \Sigma}_{ij} = {\bm 0}$ (zero column sums), the friction tensor (assembled in the row-wise form below) has vanishing row/column sums, i.e. it is translation-invariant and the dynamics momentum-conserving (see the DPD workflow example). The diagonal carries no extra parameters — it is a linear function of the off-diagonal (offsite) coefficients.
 
 ### [Assembly of the friction tensor](@id gamma-assembly)
 
 How ${\bm \Gamma}$ is built from ${\bm \Sigma}$ depends on the coupling scheme — it is **not** in general the plain product ${\bm \Sigma}{\bm \Sigma}^{T}$:
 
-- **Onsite / row-wise** coupling (`OnsiteOnlyMatrixModel`, `RWCMatrixModel`, `ACDPDMatrixModel`): the friction tensor is the matrix square ${\bm \Gamma} = {\bm \Sigma}{\bm \Sigma}^{T}$, i.e.
+- **Onsite / row-wise** coupling (`OnsiteOnlyMatrixModel`, `RWCMatrixModel`): the friction tensor is the matrix square ${\bm \Gamma} = {\bm \Sigma}{\bm \Sigma}^{T}$, i.e.
   ```math
   {\bm \Gamma}_{ij} = \sum_{k} {\bm \Sigma}_{ik}\,{\bm \Sigma}_{jk}^{T}.
   ```
@@ -80,7 +75,7 @@ In both cases the resulting ${\bm \Gamma}$ is symmetric positive semi-definite, 
 
 The local environment entering each block is delimited by a cutoff:
 
-- **`SphericalCutoff(rcut)`** — used for onsite blocks and for the atom-centred offsite blocks of `RWCMatrixModel`/`ACDPDMatrixModel`: the environment of $i$ is $\mathcal{N}_i = \{\,k : \|{\bm r}_{ik}\| \le r_{\rm cut}\,\}$, and for a pair $(i,j)$ the bond partner is $j\in\mathcal{N}_i$.
+- **`SphericalCutoff(rcut)`** — used for onsite blocks and for the atom-centred offsite blocks of `RWCMatrixModel`: the environment of $i$ is $\mathcal{N}_i = \{\,k : \|{\bm r}_{ik}\| \le r_{\rm cut}\,\}$, and for a pair $(i,j)$ the bond partner is $j\in\mathcal{N}_i$.
 - **`EllipsoidCutoff(rcutbond, rcutenv, zcutenv)`** — a bond-centred ellipsoidal environment for `PWCMatrixModel`: bonds with $\|{\bm r}_{ij}\|\le r_{\rm cut}^{\rm bond}$, and environment atoms inside $(z/z_{\rm cut}^{\rm env})^2 + (r/r_{\rm cut}^{\rm env})^2 \le 1$ around the bond midpoint ($z$ along the bond, $r$ perpendicular).
 - **`SnowManCutoff(rcut, symmetry)`** — an atom-centred alternative for the pair model: the block of $(i,j)$ combines the ACE basis evaluated on the spherical environment of $i$ (bond $i\to j$) and of $j$ (bond $j\to i$),
   ```math
@@ -127,4 +122,4 @@ or a configuration-dependent diffusion tensor in an overdamped Langevin equation
 \dot{{\bm r}} = - {\bm\Gamma}({\bm r}) \nabla U({\bm r})  + \sqrt{2 \beta^{-1}} {\bm\Sigma}\circ \dot{{\bm W}}. %+ \beta^{-1}{\rm div}({\bm \Gamma}(r)).
 ```
 
-The model and code allows imposing additional symmetry constraints on the matrix ${\bm \Gamma}$. In particular, the learned friction-tensor ${\bm \Gamma}$ can be specified to satisfy relevant symmetries for the dynamics (1) to be momentum-conserving, thus enabling learning and simulation of Multi-Body Dissipative Particle Dynamics (MD-DPD).
+The model and code allows imposing additional symmetry constraints on the matrix ${\bm \Gamma}$. In particular, the learned friction-tensor ${\bm \Gamma}$ can be specified to satisfy relevant symmetries for the dynamics to be momentum-conserving.

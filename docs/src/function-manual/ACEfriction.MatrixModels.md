@@ -11,15 +11,6 @@ PWCMatrixModel
 ```@docs
 OnsiteOnlyMatrixModel
 ```
-```@docs
-mdDPD_pwc_matrixmodel
-```
-```@docs
-mdDPD_ac_matrixmodel
-```
-```@docs
-ACDPDMatrixModel
-```
 
 The first argument of every constructor is an equivariant *block property*
 (`Invariant`, `EuclideanVector`, `EuclideanMatrix`, or `SymmetricEuclideanMatrix`) fixing

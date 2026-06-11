@@ -25,8 +25,7 @@ import ACEfriction.FrictionFit: FrictionData, FluxFrictionModel, flux_assemble
 export FrictionData, FluxFrictionModel, flux_assemble
 
 import ACEfriction.MatrixModels: RWCMatrixModel, OnsiteOnlyMatrixModel, PWCMatrixModel
-# mdDPD_pwc_matrixmodel / mdDPD_ac_matrixmodel are defined at top level in matrixmodelsutils.jl
-export RWCMatrixModel, mdDPD_pwc_matrixmodel, mdDPD_ac_matrixmodel, OnsiteOnlyMatrixModel, PWCMatrixModel
+export RWCMatrixModel, OnsiteOnlyMatrixModel, PWCMatrixModel
 
 import ACEfriction.DataUtils: write_dict, read_dict, load_h5fdata, save_h5fdata
 export write_dict, read_dict, load_h5fdata, save_h5fdata
