@@ -11,7 +11,7 @@
 
 using ACEfriction, LinearAlgebra, SparseArrays, StaticArrays
 using ACEfriction.FrictionModels
-using ACEfriction: EuclideanMatrix, SnowManCutoff, EllipsoidCutoff
+using ACEfriction: EuclideanMatrix, SnowManCutoff, EllipsoidCutoff, mdDPD_ac_matrixmodel
 import ACEfriction.MatrixModels: matrix, basis
 import AtomsBuilder: bulk, rattle!
 import Random
@@ -82,7 +82,29 @@ function run_bench_ellipsoid(; maxorder = 2, maxdeg = 6, n_rep = 2, samples = 5)
     end
 end
 
+# Reference: atom-centred momentum-conserving DPD model (`ACDPDMatrixModel`). Like the
+# spherical PWC assembly but it also fills the derived diagonal Σ_ii = -∑_{k≠i} Σ_ki
+# (a column-sum pass over the sparse off-diagonal blocks). Single implementation.
+function run_bench_acdpd(; maxorder = 2, maxdeg = 6, n_rep = 2, samples = 5)
+    println("\nAtom-centred DPD benchmark  (ACDPDMatrixModel, spherical rcut=5; ",
+            "maxorder=$maxorder, maxdeg=$maxdeg, n_rep=$n_rep)")
+    println(rpad("N", 6), rpad("#blocks", 9), rpad("matrix (ms)", 14), "basis (ms)")
+    println("-"^44)
+    Random.seed!(1)
+    m = mdDPD_ac_matrixmodel(EuclideanMatrix(Float64), [:Cu], [:Cu];
+                             rcut = 5.0, maxorder = maxorder, maxdeg = maxdeg, n_rep = n_rep)
+    for sz in SIZES
+        at = rattle!(bulk(:Cu) * sz, 0.2); N = length(at)
+        nblk = _ndirected(m, at)                 # stored blocks incl. derived diagonal
+        tm = _best(() -> matrix(m, at); samples = samples)
+        tb = _best(() -> basis(m, at);  samples = samples)
+        ms(x) = round(1e3 * x; digits = 2)
+        println(rpad(N, 6), rpad(nblk, 9), rpad(ms(tm), 14), ms(tb))
+    end
+end
+
 run_bench(sym = :symmetric)
 run_bench(sym = :antisymmetric)
 run_bench_ellipsoid()
+run_bench_acdpd()
 println("\n(times are min wall-clock in ms over samples; speedup = naive / cached)")

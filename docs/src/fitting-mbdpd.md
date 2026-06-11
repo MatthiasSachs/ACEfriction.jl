@@ -13,9 +13,9 @@ In order for this to be the case, the friction tensor must satisfy the constrain
 ```
 
 ## Momentum-conserving Friction Models in `ACEfriction.jl`
-`ACEfriction.jl` provides utility functions for the construction of momentum-conserving friction models. Namely, the function [mbdpd_matrixmodel]() yields a pair-wise coupled matrix model with additional symmetries such that resulting friction model satisfies the above constraints. For example, 
+`ACEfriction.jl` provides utility functions for the construction of momentum-conserving friction models. Namely, the function [mdDPD_pwc_matrixmodel]() yields a pair-wise coupled matrix model with additional symmetries such that resulting friction model satisfies the above constraints (and [mdDPD_ac_matrixmodel]() the atom-centred variant). For example, 
 ```julia
-m_cov = mbdpd_matrixmodel(EuclideanVector(), [:X], [:X];
+m_cov = mdDPD_pwc_matrixmodel(EuclideanVector(), [:X], [:X];
     maxorder=1, 
     maxdeg=5,    
     rcutbond = 5.0, 
@@ -26,6 +26,31 @@ m_cov = mbdpd_matrixmodel(EuclideanVector(), [:X], [:X];
 fm= FrictionModel((m_cov=m_cov,)); 
 ```
 results in a momentum-conserving friction model with vector-equivariant blocks in the diffusion matrix. Here, the model is specified for the artifical atom element type `:X`.
+
+### Two momentum-conserving constructions
+
+Momentum conservation requires $\sum_i {\bm \Gamma}_{ij} = {\bm 0}$ for every $j$ (so that a rigid translation exerts no net friction force). How this is secured depends on how ${\bm \Gamma}$ is assembled from the diffusion matrix ${\bm \Sigma}$ — which differs between the coupling schemes (see [Assembly of the friction tensor](@ref gamma-assembly)). `ACEfriction.jl` offers two constructions:
+
+1. **Pair-wise coupling** — [`mdDPD_pwc_matrixmodel`](@ref) builds a [`PWCMatrixModel`](@ref) with a purely off-diagonal, *antisymmetric* diffusion matrix,
+   ```math
+   {\bm \Sigma}_{ij} = -{\bm \Sigma}_{ji}, \qquad {\bm \Sigma}_{ii} = {\bm 0}.
+   ```
+   Under the pair-wise assembly ${\bm \Gamma}_{ij} = {\bm \Sigma}_{ij}({\bm \Sigma}_{ji})^{T}$ ($i\neq j$), ${\bm \Gamma}_{ii} = \sum_k {\bm \Sigma}_{ik}({\bm \Sigma}_{ik})^{T}$, antisymmetry gives ${\bm \Gamma}_{ij} = -{\bm \Sigma}_{ij}({\bm \Sigma}_{ij})^{T}$ for $i\neq j$, hence $\sum_i {\bm \Gamma}_{ij} = {\bm \Gamma}_{jj} - \sum_{i\neq j}{\bm \Sigma}_{ij}({\bm \Sigma}_{ij})^{T} = {\bm 0}$. The antisymmetry is enforced either by the **Z2-odd parity** of the bond basis on a bond-centred `EllipsoidCutoff` (`env=:ellipsoid`, the default), or by an **antisymmetric snowman combine** on a `SnowManCutoff` (`env=:snowman`):
+   ```math
+   {\bm \Sigma}_{ij} = c\cdot B(\text{sphere}_i, i\to j) - c\cdot B(\text{sphere}_j, j\to i).
+   ```
+
+2. **Atom-centred coupling** — [`mdDPD_ac_matrixmodel`](@ref) builds an [`ACDPDMatrixModel`](@ref) on a `SphericalCutoff` whose off-diagonal blocks are ordinary offsite ACE blocks and whose diagonal is *derived* so that ${\bm \Sigma}$ has **vanishing column sums**, $\sum_i {\bm \Sigma}_{ij} = {\bm 0}$:
+   ```math
+   {\bm \Sigma}_{ij} = \begin{cases} -\sum_{k\neq i} {\bm \Sigma}_{ki}, & j = i,\\[2pt] {\bm \Sigma}_{ij}, & i\neq j. \end{cases}
+   ```
+   Here ${\bm \Gamma}={\bm \Sigma}{\bm \Sigma}^{T}$ (row-wise assembly), so vanishing column sums give $\sum_i {\bm \Gamma}_{ij} = {\bm 0}$ directly, and the random force ${\bm F}={\bm \Sigma}{\bm R}$ conserves momentum, $\sum_i {\bm F}_i = \sum_j\big(\sum_i {\bm \Sigma}_{ij}\big){\bm R}_j = {\bm 0}$. This includes the on-site (diagonal) friction contribution explicitly, at the cost of one column-sum pass over the off-diagonal blocks; the diagonal introduces no additional fit parameters.
+
+For example, the atom-centred variant is constructed as
+```julia
+m_cov = mdDPD_ac_matrixmodel(EuclideanVector(), [:X], [:X];
+    maxorder = 1, maxdeg = 5, rcut = 5.0, n_rep = 1)
+```
 
 ## Fit Friction Model to Synthetic DPD Friction Data
 

@@ -30,8 +30,8 @@ using ACEfriction.MatrixModels: NoZ2Sym, SpeciesUnCoupled
 
 
 
-m_cov = mbdpd_matrixmodel(EuclideanVector(), [:X], [:X];
-    maxorder=1, 
+m_cov = mdDPD_pwc_matrixmodel(EuclideanVector(), [:X], [:X];
+    maxorder=1,
     maxdeg=8,    
     rcutbond = 5.0, 
     rcutenv = 5.0,
@@ -100,4 +100,8 @@ at = fdata["test"][1].atoms
 @time Gamma(fm, Σ)
 @time randf(fm, Σ)
 
+Γ = Gamma(fm, at)
+rf = randf(fm, Σ)
+sum(rf)
 
+sum(Γ[:,1])

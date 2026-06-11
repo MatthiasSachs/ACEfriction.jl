@@ -1,11 +1,11 @@
 using ACEfriction.MatrixModels
 import ACEfriction.ETBackend: _atomic_number
-import ACEfriction.MatrixModels: RWCMatrixModel, PWCMatrixModel, OnsiteOnlyMatrixModel
+import ACEfriction.MatrixModels: RWCMatrixModel, PWCMatrixModel, OnsiteOnlyMatrixModel, ACDPDMatrixModel
 import ACEfriction.MatrixModels: OnSiteModel, OffSiteModel, BondBasis, onsite_linbasis,
        offsite_linbasis, SphericalCutoff, EllipsoidCutoff, SnowManCutoff, _o3symmetry, _default_id,
        _mreduce, NoZ2Sym, Odd, Even, SpeciesCoupled, SpeciesUnCoupled,
        AtomCentered, NeighborCentered, EvaluationCenter, _o3sym
-export RWCMatrixModel, PWCMatrixModel, OnsiteOnlyMatrixModel, mbdpd_matrixmodel
+export RWCMatrixModel, PWCMatrixModel, OnsiteOnlyMatrixModel, ACDPDMatrixModel, mdDPD_pwc_matrixmodel, mdDPD_ac_matrixmodel
 
 # Outer convenience constructors. The basis backend is EquivariantTensors; the
 # `polytransform`/`trans` argument of the old backend is gone (the radial transform
@@ -204,17 +204,71 @@ function RWCMatrixModel(property, species_friction, species_env, evalcenter::Eva
 end
 
 """
-    mbdpd_matrixmodel(property, species_friction, species_env; maxorder=2, maxdeg=5,
-        rcutbond=5.0, rcutenv=3.0, zcutenv=6.0, n_rep=3, ...)
+    mdDPD_pwc_matrixmodel(property, species_friction, species_env; env=:ellipsoid,
+        maxorder=2, maxdeg=5, rcutbond=5.0, rcutenv=3.0, zcutenv=6.0, rcut=5.0,
+        n_rep=3, ...)
 
-Momentum-preserving (DPD) friction model: a pairwise-coupled model on an ellipsoid
-bond environment with Z2-odd symmetry and species coupling.
+Momentum-preserving (DPD) friction model, **pairwise-coupled**: a species-coupled
+`PWCMatrixModel` whose diffusion matrix `Σ` is antisymmetric (`Σ_ij = -Σ_ji`), giving
+momentum-conserving friction. The `env` keyword selects the bond environment:
+
+- `:ellipsoid` (default) — bond-centred ellipsoid (`rcutbond`, `rcutenv`, `zcutenv`)
+  with `z2sym=Odd()`; antisymmetry comes from the Z2-odd parity of the bond basis.
+- `:snowman` — two atom-centred spheres of radius `rcut`, one per bond end, combined
+  *antisymmetrically* (`SnowManCutoff(rcut, :antisymmetric)`); antisymmetry comes from
+  the combine, so no Z2 constraint is imposed (`z2sym=NoZ2Sym()`).
+
+Extra keyword arguments are forwarded to `PWCMatrixModel`. See also
+[`mdDPD_ac_matrixmodel`](@ref) for the atom-centred variant.
 """
-function mbdpd_matrixmodel(property, species_friction, species_env;
-        maxorder=2, maxdeg=5, rcutbond=5.0, rcutenv=3.0, zcutenv=6.0, n_rep=3,
-        species_substrat=[], id=nothing, kwargs...)
-    return PWCMatrixModel(property, species_friction, species_env,
-        EllipsoidCutoff(rcutbond, rcutenv, zcutenv);
-        n_rep=n_rep, maxorder=maxorder, maxdeg=maxdeg, z2sym=Odd(),
-        speciescoupling=SpeciesCoupled(), species_substrat=species_substrat, id=id, kwargs...)
+function mdDPD_pwc_matrixmodel(property, species_friction, species_env;
+        env::Symbol=:ellipsoid,
+        maxorder=2, maxdeg=5, rcutbond=5.0, rcutenv=3.0, zcutenv=6.0, rcut=5.0,
+        n_rep=3, species_substrat=[], id=nothing, kwargs...)
+    if env === :ellipsoid
+        return PWCMatrixModel(property, species_friction, species_env,
+            EllipsoidCutoff(rcutbond, rcutenv, zcutenv);
+            n_rep=n_rep, maxorder=maxorder, maxdeg=maxdeg, z2sym=Odd(),
+            speciescoupling=SpeciesCoupled(), species_substrat=species_substrat, id=id, kwargs...)
+    elseif env === :snowman
+        return PWCMatrixModel(property, species_friction, species_env,
+            SnowManCutoff(rcut, :antisymmetric);
+            n_rep=n_rep, maxorder=maxorder, maxdeg=maxdeg, z2sym=NoZ2Sym(),
+            speciescoupling=SpeciesCoupled(), species_substrat=species_substrat, id=id, kwargs...)
+    else
+        error("mdDPD_pwc_matrixmodel: env must be :ellipsoid or :snowman (got :$env)")
+    end
+end
+
+"""
+    mdDPD_ac_matrixmodel(property, species_friction, species_env; rcut=5.0,
+        maxorder=2, maxdeg=5, n_rep=3, ...)
+
+Momentum-preserving (DPD) friction model, **atom-centred**: a species-coupled
+`ACDPDMatrixModel` on a spherical (`rcut`) pair environment. The off-diagonal blocks
+`Σ_ij` (`i≠j`) are the offsite ACE blocks; the diagonal is *derived* as
+`Σ_ii = -∑_{k≠i} Σ_ki` so each column of `Σ` sums to zero. With `Γ = ΣΣᵀ` and random
+force `F = Σ·R`, this makes the friction translation-invariant and `∑_i F_i = 0`
+(momentum-conserving). Extra keyword arguments are forwarded to the offsite basis
+builder. See also [`mdDPD_pwc_matrixmodel`](@ref) for the pairwise variant.
+"""
+function mdDPD_ac_matrixmodel(property, species_friction, species_env;
+        id=nothing, n_rep=3, maxorder=2, maxdeg=5, rcut=5.0,
+        z2sym=NoZ2Sym(), speciescoupling=SpeciesCoupled(),
+        r0_ratio=0.4, rin_ratio=0.04, pcut=2, pin=2, p_sel=2,
+        weight=Dict(:n => 1.0, :l => 1.0), bond_weight=1.0,
+        species_minorder_dict=Dict{Any,Float64}(),
+        species_maxorder_dict=Dict{Any,Float64}(),
+        species_weight_cat=Dict(c => 1.0 for c in species_env),
+        species_substrat=[])
+    bb = offsite_linbasis(property, species_env;
+        z2symmetry=z2sym, rcut=1.0, maxorder=maxorder, maxdeg=maxdeg,
+        r0_ratio=r0_ratio, rin_ratio=rin_ratio, pcut=pcut, pin=pin, p_sel=p_sel,
+        weight=weight, bond_weight=bond_weight,
+        species_minorder_dict=species_minorder_dict,
+        species_maxorder_dict=species_maxorder_dict,
+        species_weight_cat=species_weight_cat, species_substrat=species_substrat)
+    offsitemodels = _offsite_dict(bb, SphericalCutoff(rcut), species_friction, n_rep, speciescoupling)
+    id = (id === nothing ? _o3id(property) : id)
+    return ACDPDMatrixModel(offsitemodels, id, speciescoupling)
 end

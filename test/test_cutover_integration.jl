@@ -47,7 +47,7 @@ _dense(G, N) = (A = zeros(3N, 3N); for i=1:N, j=1:N; A[3i-2:3i, 3j-2:3j] .= G[i,
       import Unitful: @u_str
       atX = FlexibleSystem([Atom(0, position(at, i)) for i in 1:N];
                            cell_vectors = cell_vectors(at), periodicity = periodicity(at))
-      m = mbdpd_matrixmodel(EuclideanVector(), [:X], [:X];
+      m = mdDPD_pwc_matrixmodel(EuclideanVector(), [:X], [:X];
              maxorder=2, maxdeg=6, rcutbond=5.0, rcutenv=5.0, zcutenv=5.0, n_rep=2)
       fm = FrictionModel((cov=m,))
       # randomise coefficients so the property isn't trivially satisfied at zero
@@ -67,6 +67,51 @@ _dense(G, N) = (A = zeros(3N, 3N); for i=1:N, j=1:N; A[3i-2:3i, 3j-2:3j] .= G[i,
                    F = randf(fm, Σnt)        # Vector{SVector{3}}, one force per atom
                    norm(sum(F)) < 1e-10
                 end for _ in 1:20)
+   end
+
+   @testset "DPD model with snowman environment: momentum conservation" begin
+      # mdDPD_pwc_matrixmodel(...; env=:snowman) uses an antisymmetric snowman combine
+      # (Σ_ij = c·B(sphere_i,i→j) − c·B(sphere_j,j→i)) instead of the ellipsoid Z2-odd
+      # mechanism. It must be momentum-conserving just like the ellipsoid DPD: Σ
+      # antisymmetric, Γ row sums zero, and randf noise summing to zero.
+      m = mdDPD_pwc_matrixmodel(EuclideanVector(), [:Cu], [:Cu];
+             env=:snowman, rcut=5.0, maxorder=2, maxdeg=6, n_rep=2)
+      fm = FrictionModel((cov=m,))
+      Random.seed!(4)
+      c = params(fm; format=:matrix, joinsites=true)
+      set_params!(fm, map(x -> randn(size(x)), c))
+      Σnt = Sigma(fm, at); Σ = Σnt.cov[1]
+      I, J, _ = findnz(Σ)
+      @test maximum(norm(Σ[i,j] + Σ[j,i]) for (i,j) in zip(I,J)) < 1e-10   # antisymmetry
+      Γ = Gamma(fm, at)
+      @test maximum(norm(sum(Γ[i,j] for j in 1:N)) for i in 1:N) < 1e-10   # zero row sums
+      @test all(norm(sum(randf(fm, Σnt))) < 1e-10 for _ in 1:20)           # momentum-conserving noise
+   end
+
+   @testset "DPD model atom-centred (ACDPDMatrixModel): momentum conservation" begin
+      # mdDPD_ac_matrixmodel: off-diagonal offsite blocks + derived diagonal
+      # Σ_ii = -∑_{k≠i} Σ_ki (zero column sums). With Γ=ΣΣᵀ and F=Σ·R this is
+      # momentum-conserving (∑_i F_i = 0) and Γ is translation-invariant.
+      m = mdDPD_ac_matrixmodel(EuclideanVector(), [:Cu], [:Cu];
+             rcut=5.0, maxorder=2, maxdeg=6, n_rep=2)
+      fm = FrictionModel((cov=m,))
+      Random.seed!(5)
+      c = params(fm; format=:matrix, joinsites=true)
+      set_params!(fm, map(x -> randn(size(x)), c))
+      Σnt = Sigma(fm, at); Σ = Σnt.cov[1]
+      @test maximum(norm(sum(Σ[:,j])) for j in 1:N) < 1e-10                 # zero column sums
+      Γ = Gamma(fm, at)
+      @test maximum(norm(sum(Γ[i,j] for j in 1:N)) for i in 1:N) < 1e-10    # Γ translation-invariant
+      Gd = _dense(Γ, N)
+      @test minimum(eigvals(Symmetric(Gd))) > -1e-8                         # PSD
+      @test all(norm(sum(randf(fm, Σnt))) < 1e-10 for _ in 1:20)            # momentum-conserving noise
+      # basis · c == matrix (derived diagonal folded into the offsite basis)
+      Boff = ACEfriction.MatrixModels.basis(m, at).offsite
+      cc = m.offsite[(29,29)].c
+      @test norm(sum(cc[k][1] * Boff[k] for k in eachindex(Boff)) - Σ) < 1e-10
+      # serialization round-trip
+      fm2 = read_dict(write_dict(fm))
+      @test norm(_dense(Gamma(fm2, at), N) - Gd) < 1e-10
    end
 
    @testset "SnowMan PWC ($sym): combine, basis/matrix consistency, IO" for sym in (:symmetric, :antisymmetric)
