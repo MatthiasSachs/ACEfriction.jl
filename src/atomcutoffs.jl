@@ -6,15 +6,15 @@ module AtomCutoffs
 # single name. (Replaces the ACEfrictionCore/ACEbonds cutoffs.)
 
 import ACEfriction.ETBackend
-import ACEfriction.ETBackend: SphericalCutoff, EllipsoidCutoff, env_cutoff,
+import ACEfriction.ETBackend: SphericalCutoff, EllipsoidCutoff, SnowManCutoff, env_cutoff,
                               env_filter, ellipsoid_env_transform,
                               spherical_bond_transform, et_bonds
 import ACEfriction.ETBackend: _atomic_number, _chemical_symbol
 
-export SphericalCutoff, EllipsoidCutoff, AbstractCutoff
+export SphericalCutoff, EllipsoidCutoff, SnowManCutoff, AbstractCutoff
 export env_filter, env_cutoff
 export ellipsoid_env_transform, spherical_bond_transform, et_bonds
 
-const AbstractCutoff = Union{SphericalCutoff, EllipsoidCutoff}
+const AbstractCutoff = Union{SphericalCutoff, EllipsoidCutoff, SnowManCutoff}
 
 end

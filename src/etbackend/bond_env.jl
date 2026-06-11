@@ -40,14 +40,51 @@ end
 env_cutoff(sc::SphericalCutoff) = sc.rcut
 
 """
+    SnowManCutoff(rcut, symmetry = :symmetric)
+
+Atom-centred pair-environment cutoff combining *both* bond ends: the diffusion block
+of a pair `(i,j)` evaluates the ACE basis on the spherical environment of `i` (with
+`j` the bond partner) and on the spherical environment of `j` (with `i` the bond
+partner) — two overlapping spheres, one per bond end (the "snowman") — and combines
+them with the *same* coefficients. The combination is selected by `symmetry`:
+
+    :symmetric      Σ_ij = c · basis(sphere_i, bond i→j) + c · basis(sphere_j, bond j→i)
+    :antisymmetric  Σ_ij = c · basis(sphere_i, bond i→j) - c · basis(sphere_j, bond j→i)
+
+`symmetry` is carried as a (Symbol-valued) type parameter `SnowManCutoff{T, S}` so the
+assembly dispatches on it via [`_snowman_combine`](@ref). `rcut` is the per-centre
+spherical radius (same convention as [`SphericalCutoff`](@ref)).
+"""
+struct SnowManCutoff{T, S}
+   rcut::T
+   function SnowManCutoff(rcut::T, symmetry::Symbol = :symmetric) where {T}
+      @assert symmetry in (:symmetric, :antisymmetric) "symmetry must be :symmetric or :antisymmetric (got :$symmetry)."
+      return new{T, symmetry}(rcut)
+   end
+end
+env_cutoff(sc::SnowManCutoff) = sc.rcut
+"the symmetry tag (`:symmetric` / `:antisymmetric`) carried in the type parameter."
+symmetry(::SnowManCutoff{T, S}) where {T, S} = S
+
+"""
+    _snowman_combine(cutoff, a, b)
+
+Combine the two bond-end contributions of a snowman pair according to the cutoff's
+symmetry: `a + b` for `:symmetric`, `a - b` for `:antisymmetric`. Dispatches on the
+Symbol-valued type parameter of [`SnowManCutoff`](@ref).
+"""
+_snowman_combine(::SnowManCutoff{T, :symmetric}, a, b) where {T} = a + b
+_snowman_combine(::SnowManCutoff{T, :antisymmetric}, a, b) where {T} = a - b
+
+"""
     spherical_bond_transform(j_loc, Rs, Zs, sc) -> (r̂bond, Rs_env, Zs_env)
 
-For the spherical offsite model: bond direction `Rs[j_loc]/rcut`, environment = the
-*other* neighbours of `i` (each `/rcut`). Mirrors ACEfrictionCore's
-`env_transform(j, Rs, Zs, ::SphericalCutoff)`.
+For the (atom-centred) spherical / snowman offsite models: bond direction
+`Rs[j_loc]/rcut`, environment = the *other* neighbours of the centre (each `/rcut`).
+Mirrors ACEfrictionCore's `env_transform(j, Rs, Zs, ::SphericalCutoff)`.
 """
 function spherical_bond_transform(j_loc::Int, Rs::AbstractVector{<:SVector{3}},
-                                  Zs::AbstractVector, sc::SphericalCutoff)
+                                  Zs::AbstractVector, sc::Union{SphericalCutoff,SnowManCutoff})
    rbond = Rs[j_loc] / sc.rcut
    Rs_env = SVector{3,Float64}[]; Zs_env = Int[]
    for l in eachindex(Rs)

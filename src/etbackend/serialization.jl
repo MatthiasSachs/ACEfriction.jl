@@ -7,9 +7,10 @@
 # serialization at cut-over.
 
 using StaticArrays
-
-"""dispatch a dict produced by `write_dict` back to a concrete object."""
-read_dict(D::AbstractDict) = read_dict(Val(Symbol(D["__id__"])), D)
+# extend the canonical ACEbase serialization functions (the ones ACEfriction /
+# DataUtils / save_dict-load_dict use), so all `write_dict`/`read_dict` methods
+# across the package live on one generic function.
+import ACEbase.FIO: read_dict, write_dict
 
 # ---- site basis (onsite or bond) : rebuild from recipe ----
 
@@ -52,6 +53,23 @@ write_dict(b::ETFrictionSiteBasis) =
                         "recipe" => b.meta["recipe"])
 
 read_dict(::Val{:ETBackend_SiteBasis}, D::AbstractDict) = rebuild_basis(D["recipe"])
+
+# ---- cutoffs ----
+write_dict(c::SphericalCutoff) =
+      Dict{String,Any}("__id__" => "ETBackend_SphericalCutoff", "rcut" => c.rcut)
+read_dict(::Val{:ETBackend_SphericalCutoff}, D::AbstractDict) = SphericalCutoff(Float64(D["rcut"]))
+
+write_dict(c::SnowManCutoff) =
+      Dict{String,Any}("__id__" => "ETBackend_SnowManCutoff", "rcut" => c.rcut,
+                       "symmetry" => String(symmetry(c)))
+read_dict(::Val{:ETBackend_SnowManCutoff}, D::AbstractDict) =
+      SnowManCutoff(Float64(D["rcut"]), Symbol(get(D, "symmetry", "symmetric")))
+
+write_dict(c::EllipsoidCutoff) =
+      Dict{String,Any}("__id__" => "ETBackend_EllipsoidCutoff",
+            "rcutbond" => c.rcutbond, "rcutenv" => c.rcutenv, "zcutenv" => c.zcutenv)
+read_dict(::Val{:ETBackend_EllipsoidCutoff}, D::AbstractDict) =
+      EllipsoidCutoff(Float64(D["rcutbond"]), Float64(D["rcutenv"]), Float64(D["zcutenv"]))
 
 # ---- flattened onsite model : recipe + coefficients ----
 

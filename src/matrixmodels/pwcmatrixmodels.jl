@@ -46,6 +46,86 @@ function matrix(M::PWCMatrixModel{O3S, <:SphericalCutoff, Z2S, SC}, at::Abstract
     return [ sparse(Is[r], Js[r], Vs[r], N, N) for r = 1:M.n_rep ]
 end
 
+# ---- Σ assembly (snowman: symmetrised over both bond ends) ----
+# Σ_ij = c·B(sphere_i, bond i→j) + c·B(sphere_j, bond j→i): the diffusion block of a
+# pair combines the ACE basis on i's spherical environment (j the bond partner) and
+# on j's spherical environment (i the bond partner). Needs both sites' neighbour
+# data, so the per-site lists are materialised up front.
+
+# materialise per-site neighbour data (indices + relative vectors) for O(1) lookup
+function _site_nb_table(at::AbstractSystem, rcut::Real)
+    tab = Dict{Int, Tuple{Vector{Int}, Vector{SVector{3,Float64}}}}()
+    for (i, neigs, Rs) in _sites(at, rcut)
+        tab[i] = (collect(neigs), collect(Rs))
+    end
+    return tab
+end
+
+# local index of the reverse bond (atom i) in atom j's neighbour list: the neighbour
+# equal to `i` whose relative vector matches `-rrij` (matched by vector to pick the
+# correct periodic image).
+function _reverse_loc(neigs_j::Vector{Int}, Rs_j::Vector{<:SVector{3}}, i::Int, rrij::SVector{3})
+    @inbounds for l in eachindex(neigs_j)
+        (neigs_j[l] == i && norm(Rs_j[l] + rrij) < 1e-8) && return l
+    end
+    return nothing
+end
+
+# Walk every assembled snowman pair (i,j) exactly once, invoking
+# `f(i, j, zz, om, Bij, Bji)` with `zz=(Zi,Zj)`, `om=M.offsite[zz]`, and the two
+# per-centre basis vectors `Bij = B(sphere_i, bond i→j)`, `Bji = B(sphere_j, bond j→i)`.
+#
+# With `cache=true` the per-directed-bond ACE evaluation is memoised by
+# `(centre, local_index)` so each directed bond is evaluated only once (it is reused
+# as `Bij` of pair (i,j) and as `Bji` of pair (j,i)). The basis evaluation is
+# species-pair-independent (all offsite models share `bb`/`cutoff`), so a single cache
+# is valid across all pairs. The key is image-specific (a local neighbour index, not
+# an atom pair), which is what makes it correct under periodic boundary conditions.
+# With `cache=false` each `Bij`/`Bji` is evaluated on demand (the original two-eval
+# path), preserved for cross-checking / benchmarking.
+function _foreach_snowman_pair(f, M::PWCMatrixModel{O3S, <:SnowManCutoff, Z2S, SC},
+                               at::AbstractSystem; filter=(_,_)->true, cache::Bool=true) where {O3S, Z2S, SC}
+    N = length(at); Z = _species(at)
+    nb = _site_nb_table(at, env_cutoff(M.offsite))
+    BT = block_type(first(values(M.offsite)).basis)
+    store = Dict{Tuple{Int,Int}, Vector{BT}}()
+    # per-centre directed-bond basis evaluation, optionally memoised
+    getB(c::Int, loc::Int, om) = begin
+        (neigs_c, Rs_c) = nb[c]
+        cache ? get!(() -> evaluate_basis(om, loc, Rs_c, Z[neigs_c]), store, (c, loc)) :
+                evaluate_basis(om, loc, Rs_c, Z[neigs_c])
+    end
+    for i = 1:N
+        (haskey(nb, i) && filter(i, at)) || continue
+        (neigs_i, Rs_i) = nb[i]
+        for (j_loc, j) in enumerate(neigs_i)
+            filter(j, at) || continue
+            (Zi, Zj) = _mreduce(Z[i], Z[j], SC); haskey(M.offsite, (Zi, Zj)) || continue
+            om = M.offsite[(Zi, Zj)]
+            Bij = getB(i, j_loc, om)                                   # sphere at i, bond i→j
+            (neigs_j, Rs_j) = nb[j]
+            i_loc = _reverse_loc(neigs_j, Rs_j, i, Rs_i[j_loc])
+            i_loc === nothing && error("snowman: reverse bond ($j,$i) not found")
+            Bji = getB(j, i_loc, om)                                   # sphere at j, bond j→i
+            f(i, j, (Zi, Zj), om, Bij, Bji)
+        end
+    end
+    return nothing
+end
+
+function matrix(M::PWCMatrixModel{O3S, <:SnowManCutoff, Z2S, SC}, at::AbstractSystem;
+                filter=(_,_)->true, T=Float64, cache::Bool=true) where {O3S, Z2S, SC}
+    N = length(at)
+    Is = [Int[] for _=1:M.n_rep]; Js = [Int[] for _=1:M.n_rep]
+    Vs = [_block_type(M,T)[] for _=1:M.n_rep]
+    _foreach_snowman_pair(M, at; filter=filter, cache=cache) do i, j, zz, om, Bij, Bji
+        Bcomb = _snowman_combine.(Ref(om.cutoff), Bij, Bji)            # combine then contract
+        Σ = _contract(om, Bcomb)
+        for r = 1:M.n_rep; push!(Is[r], i); push!(Js[r], j); push!(Vs[r], Σ[r]); end
+    end
+    return [ sparse(Is[r], Js[r], Vs[r], N, N) for r = 1:M.n_rep ]
+end
+
 # ---- un-contracted basis (ellipsoid) ----
 function basis(M::PWCMatrixModel{O3S, <:EllipsoidCutoff, Z2S, SC}, at::AbstractSystem;
                join_sites=false, filter=(_,_)->true, T=Float64) where {O3S, Z2S, SC}
@@ -80,8 +160,30 @@ function basis(M::PWCMatrixModel{O3S, <:SphericalCutoff, Z2S, SC}, at::AbstractS
     return (join_sites ? B : (offsite = B,))
 end
 
+# ---- un-contracted basis (snowman: combine both bond-end spherical evaluations) ----
+function basis(M::PWCMatrixModel{O3S, <:SnowManCutoff, Z2S, SC}, at::AbstractSystem;
+               join_sites=false, filter=(_,_)->true, T=Float64, cache::Bool=true) where {O3S, Z2S, SC}
+    N = length(at); K = length(M.inds, :offsite)
+    Is = [Int[] for _=1:K]; Js = [Int[] for _=1:K]; Vs = [_block_type(M,T)[] for _=1:K]
+    _foreach_snowman_pair(M, at; filter=filter, cache=cache) do i, j, zz, om, Bij, Bji
+        for (k, b1, b2) in zip(get_range(M, zz), Bij, Bji)
+            push!(Is[k], i); push!(Js[k], j); push!(Vs[k], _snowman_combine(om.cutoff, b1, b2))
+        end
+    end
+    B = [ sparse(Is[k], Js[k], Vs[k], N, N) for k = 1:K ]
+    return (join_sites ? B : (offsite = B,))
+end
+
 function randf(::PWCMatrixModel, Σ::SparseMatrixCSC{SMatrix{3,3,T,9}, TI}) where {T<:Real, TI<:Int}
     I, J, _ = findnz(Σ); Rnz = randn(SVector{3,T}, length(J))
+    R = (sparse(I, J, Rnz) .+ sparse(J, I, Rnz)) ./ sqrt(2)
+    return vec(sum(Σ .* R, dims=1))
+end
+
+# vector-equivariant (DPD / momentum-preserving) case: Σ blocks are SVector{3} and the
+# pairwise noise is scalar, symmetrised over the (i,j) pair.
+function randf(::PWCMatrixModel, Σ::SparseMatrixCSC{SVector{3,T}, TI}) where {T<:Real, TI<:Int}
+    I, J, _ = findnz(Σ); Rnz = randn(T, length(J))
     R = (sparse(I, J, Rnz) .+ sparse(J, I, Rnz)) ./ sqrt(2)
     return vec(sum(Σ .* R, dims=1))
 end

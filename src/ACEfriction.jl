@@ -38,8 +38,8 @@ import AtomsBuilder: bulk, rattle!
 export bulk, rattle!
 
 # cutoffs + equivariant property markers now come from the ET backend
-import ACEfriction.ETBackend: EllipsoidCutoff, SphericalCutoff
-export EllipsoidCutoff, SphericalCutoff
+import ACEfriction.ETBackend: EllipsoidCutoff, SphericalCutoff, SnowManCutoff
+export EllipsoidCutoff, SphericalCutoff, SnowManCutoff
 
 import ACEfriction.ETBackend: Invariant, EuclideanVector, EuclideanMatrix, SymmetricEuclideanMatrix
 export Invariant, EuclideanVector, EuclideanMatrix, SymmetricEuclideanMatrix

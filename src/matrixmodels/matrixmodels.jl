@@ -15,7 +15,7 @@ using ACEfriction.mUtils: reinterpret
 import ACEfriction.ETBackend
 import ACEfriction.ETBackend: ETInvariant, ETVector, ETMatrix, ETSymMatrix, ETProperty,
        onsite_basis, bond_basis, evaluate_bond,
-       SphericalCutoff, EllipsoidCutoff,
+       SphericalCutoff, EllipsoidCutoff, SnowManCutoff, _snowman_combine,
        ellipsoid_env_transform, spherical_bond_transform, et_bonds, env_cutoff,
        _atomic_number, _chemical_symbol, block_type, output_LL
 import ACEfriction.ETBackend: write_dict, read_dict
@@ -149,6 +149,16 @@ end
 evaluate(sm::OffSiteModel{O3S,Z2S,<:SphericalCutoff}, j_loc::Integer, Rs, Zs) where {O3S,Z2S} =
       _contract(sm, evaluate_basis(sm, j_loc, Rs, Zs))
 
+# offsite snowman: single-centre spherical evaluation (same as spherical). The two
+# bond ends are combined at assembly time in pwcmatrixmodels.jl (Σ_ij = c·B(env_ij)
+# + c·B(env_ji)), so per-centre evaluation reuses the spherical transform.
+function evaluate_basis(sm::OffSiteModel{O3S,Z2S,<:SnowManCutoff}, j_loc::Integer, Rs, Zs) where {O3S,Z2S}
+   rbond, Rse, Zse = spherical_bond_transform(Int(j_loc), Rs, Zs, sm.cutoff)
+   return evaluate_bond(sm.basis, rbond, Rse, Zse)
+end
+evaluate(sm::OffSiteModel{O3S,Z2S,<:SnowManCutoff}, j_loc::Integer, Rs, Zs) where {O3S,Z2S} =
+      _contract(sm, evaluate_basis(sm, j_loc, Rs, Zs))
+
 const OnSiteModels{O3S} = Dict{Int, <:OnSiteModel{O3S}}
 const OffSiteModels{O3S, Z2S, CUTOFF} = Dict{Tuple{Int,Int}, <:OffSiteModel{O3S, Z2S, CUTOFF}}
 const SiteModels = Union{OnSiteModels, OffSiteModels}
@@ -198,6 +208,11 @@ _block_type(::MatrixModel{MatrixEquivariant}, T = Float64) = SMatrix{3, 3, T, 9}
 
 _n_rep(M::MatrixModel) = M.n_rep
 get_id(M::MatrixModel) = M.id
+
+# `Sigma(M, at)` returns one (sparse / Diagonal) matrix per replica; the per-replica
+# `randf` methods (in the model files) draw an independent random force for each, and
+# the model's random force is their sum.
+randf(M::MatrixModel, Σ_vec::AbstractVector) = sum(randf(M, Σ) for Σ in Σ_vec)
 Base.length(m::MatrixModel, args...) = length(m.inds, args...)
 get_range(m::MatrixModel, args...) = get_range(m.inds, args...)
 _get_model(M::MatrixModel, zz::Tuple{Int,Int}) = M.offsite[zz]

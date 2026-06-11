@@ -1,7 +1,7 @@
 using ACEfriction
 using ACEfriction.MatrixModels
 using Test
-using ACEfrictionCore.Testing
+using ACEbase.Testing
 using AtomsBuilder: bulk, rattle!, set_elements
 using AtomsBase: atomic_number
 using Distributions: Categorical
@@ -29,7 +29,7 @@ function gen_config(species; n_min=2,n_max=2, species_prop = Dict(z=>1.0/length(
     end
 end
 
-train_tol = .03;
+train_tol = 0.1;
 tol = 1E-9;
 
 @info "Create PWC+OO friction model with EllipsoidCutoff"

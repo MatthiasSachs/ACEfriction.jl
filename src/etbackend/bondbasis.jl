@@ -2,7 +2,7 @@
 #
 # Reuses the onsite machinery (species-channel radial + ET equivariant tensor +
 # Cartesian output transform). The bond direction r̂ij is a distinguished radial
-# channel (a sentinel "species" `BOND_Z = 0`), so the pooled A over the bond
+# channel (a sentinel "species" `BOND_Z`), so the pooled A over the bond
 # channel receives only the bond particle => the bond appears exactly once per
 # basis function. Z2 parity = parity of the single bond factor's l:
 #   :even -> keep even bond-l (Z2-invariant)   ~ ACEfrictionCore bondsymmetry "Invariant"
@@ -16,8 +16,13 @@ import Polynomials4ML as P4ML
 import EquivariantTensors as ET
 using StaticArrays, LinearAlgebra
 
-"sentinel atomic number marking the bond channel"
-const BOND_Z = 0
+# Sentinel "atomic number" marking the bond channel. Must never collide with a
+# real environment species: physical atomic numbers are >= 0 (with 0 the AtomsBase
+# dummy `:X`, used e.g. by DPD models), so a negative value is collision-proof. A
+# collision (e.g. the old value 0 vs an `:X` environment) would let environment
+# atoms pool into the bond channel, breaking the bond's odd-under-inversion (Z2)
+# property and hence momentum conservation.
+const BOND_Z = -1
 
 """
     generate_bond_mb_spec(rbasis, maxl; maxorder, maxdeg, weight, p, bond_weight,

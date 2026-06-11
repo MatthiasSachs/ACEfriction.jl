@@ -1,12 +1,12 @@
 using LinearAlgebra
 using ACEfriction.FrictionModels
-using ACEfrictionCore: scaling, params
+using ACEfriction: scaling, params
 using ACEfriction
 using ACEfriction.FrictionFit
 using ACEfriction.DataUtils
 using Flux
 using Flux.MLUtils
-using ACEfrictionCore
+
 using Random
 using ACEfriction.FrictionFit
 
@@ -21,8 +21,8 @@ cuda = CUDA.functional()
 rdata_train = ACEfriction.DataUtils.load_h5fdata("./examples/data/dpd-train-x.h5"); 
 rdata_test = ACEfriction.DataUtils.load_h5fdata("./examples/data/dpd-train-x.h5"); 
 
-fdata = Dict("train" => FrictionData.(rdata_train), 
-            "test"=> FrictionData.(rdata_test));
+fdata = Dict("train" => rdata_train,
+            "test"=> rdata_test);
 (n_train, n_test) = length(fdata["train"]), length(fdata["test"])
 
 using ACEfriction.AtomCutoffs: SphericalCutoff
@@ -76,6 +76,7 @@ dloader = cuda ? DataLoader(flux_data["train"] |> gpu, batchsize=batchsize, shuf
 using ACEfriction.FrictionFit: weighted_l2_loss, weighted_l1_loss
 
 for _ in 1:nepochs
+    global epoch
     epoch+=1
     @time for d in dloader
         ∂L∂m = Flux.gradient(weighted_l2_loss,ffm, d)[1]
