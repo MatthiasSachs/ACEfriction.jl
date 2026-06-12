@@ -197,7 +197,7 @@ function write_dict(m::OffSiteModel{O3S, Z2S, CUTOFF, NR}) where {O3S, Z2S, CUTO
                 "z2sym" => string(nameof(Z2S)),
                 "cutoff" => write_dict(m.cutoff))
 end
-function read_dict(::Val{:ACEfriction_OffSiteModel}, D::Dict)
+function read_dict(::Val{:ACEfriction_OffSiteModel}, D::AbstractDict)
     basis = read_dict(D["basis"]); NR = Int(D["n_rep"])
     c = reinterpret(Vector{SVector{NR,Float64}}, Vector{Float64}(D["c"]))
     z2 = getfield(@__MODULE__, Symbol(D["z2sym"]))()
@@ -210,7 +210,7 @@ function write_dict(offsite::OffSiteModels)
                 "z1" => Dict(i => string(_chemical_symbol(zz[1])) for (i, zz) in enumerate(keys(offsite))),
                 "z2" => Dict(i => string(_chemical_symbol(zz[2])) for (i, zz) in enumerate(keys(offsite))))
 end
-read_dict(::Val{:ACEfriction_offsitemodels}, D::Dict) =
+read_dict(::Val{:ACEfriction_offsitemodels}, D::AbstractDict) =
         Dict((_atomic_number(Symbol(z1)), _atomic_number(Symbol(z2))) => read_dict(v)
              for (z1, z2, v) in zip(values(D["z1"]), values(D["z2"]), values(D["vals"])))
 
@@ -218,7 +218,7 @@ function write_dict(M::PWCMatrixModel{O3S, CUTOFF, Z2S, SC}) where {O3S, CUTOFF,
     return Dict("__id__" => "ACEfriction_PWCMatrixModel",
                 "offsite" => write_dict(M.offsite), "sc" => string(nameof(SC)), "id" => string(M.id))
 end
-function read_dict(::Val{:ACEfriction_PWCMatrixModel}, D::Dict)
+function read_dict(::Val{:ACEfriction_PWCMatrixModel}, D::AbstractDict)
     offsite = read_dict(D["offsite"]); sc = getfield(@__MODULE__, Symbol(D["sc"]))()
     return PWCMatrixModel(offsite, Symbol(D["id"]), sc)
 end

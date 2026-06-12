@@ -51,7 +51,7 @@ function write_dict(m::OnSiteModel{O3S, NR}) where {O3S, NR}
                 "n_rep" => NR,
                 "rcut" => m.cutoff.rcut)
 end
-function read_dict(::Val{:ACEfriction_OnSiteModel}, D::Dict)
+function read_dict(::Val{:ACEfriction_OnSiteModel}, D::AbstractDict)
     basis = read_dict(D["basis"]); NR = Int(D["n_rep"])
     c = reinterpret(Vector{SVector{NR, Float64}}, Vector{Float64}(D["c"]))
     return OnSiteModel(basis, SphericalCutoff(Float64(D["rcut"])), c)
@@ -60,12 +60,12 @@ function write_dict(onsite::OnSiteModels)
     return Dict("__id__" => "ACEfriction_onsitemodels",
                 "zval" => Dict(string(_chemical_symbol(z)) => write_dict(v) for (z, v) in onsite))
 end
-read_dict(::Val{:ACEfriction_onsitemodels}, D::Dict) =
+read_dict(::Val{:ACEfriction_onsitemodels}, D::AbstractDict) =
         Dict(_atomic_number(Symbol(z)) => read_dict(v) for (z, v) in D["zval"])
 
 function write_dict(M::OnsiteOnlyMatrixModel)
     return Dict("__id__" => "ACEfriction_OnsiteOnlyMatrixModel",
                 "onsite" => write_dict(M.onsite), "id" => string(M.id))
 end
-read_dict(::Val{:ACEfriction_OnsiteOnlyMatrixModel}, D::Dict) =
+read_dict(::Val{:ACEfriction_OnsiteOnlyMatrixModel}, D::AbstractDict) =
         OnsiteOnlyMatrixModel(read_dict(D["onsite"]), Symbol(D["id"]))

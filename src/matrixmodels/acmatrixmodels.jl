@@ -78,7 +78,7 @@ function write_dict(M::CWCMatrixModel{O3S, Z2S, SC, EC}) where {O3S, Z2S, SC, EC
                 "sc" => string(nameof(SC)), "evalcenter" => string(nameof(EC)),
                 "id" => string(M.id))
 end
-function read_dict(::Val{:ACEfriction_CWCMatrixModel}, D::Dict)
+function read_dict(::Val{:ACEfriction_CWCMatrixModel}, D::AbstractDict)
     onsite = read_dict(D["onsite"]); offsite = read_dict(D["offsite"])
     sc = getfield(@__MODULE__, Symbol(D["sc"]))()
     ec = getfield(@__MODULE__, Symbol(D["evalcenter"]))()
@@ -86,7 +86,7 @@ function read_dict(::Val{:ACEfriction_CWCMatrixModel}, D::Dict)
 end
 # Backward compatibility: models serialized under the former name `RWCMatrixModel`
 # still load (into the renamed `CWCMatrixModel`).
-read_dict(::Val{:ACEfriction_RWCMatrixModel}, D::Dict) =
+read_dict(::Val{:ACEfriction_RWCMatrixModel}, D::AbstractDict) =
     read_dict(Val{:ACEfriction_CWCMatrixModel}(), D)
 
 # ---- deprecation: RWCMatrixModel was renamed to CWCMatrixModel ----

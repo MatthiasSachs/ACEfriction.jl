@@ -238,7 +238,7 @@ function write_dict(fm::FrictionModel)
     return Dict("__id__" => "ACEfriction_FrictionModel",
           "matrixmodels" => Dict(id=>write_dict(fm.matrixmodels[id]) for id in keys(fm.matrixmodels)))
 end
-function read_dict(::Val{:ACEfriction_FrictionModel}, D::Dict)
+function read_dict(::Val{:ACEfriction_FrictionModel}, D::AbstractDict)
     matrixmodels = NamedTuple(Dict(Symbol(id)=>read_dict(val) for (id,val) in D["matrixmodels"]))
     return FrictionModel(matrixmodels)
 end
