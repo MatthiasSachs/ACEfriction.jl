@@ -2,7 +2,7 @@
 # (model constructors -> FrictionModel -> Gamma/Sigma, params round-trip, and the
 # full Flux fitting path) on a real system, with no ACEfrictionCore.
 using ACEfriction
-using ACEfriction: EuclideanMatrix, EuclideanVector, SymmetricEuclideanMatrix, EllipsoidCutoff, SnowManCutoff
+using ACEfriction: EuclideanMatrix, SymmetricEuclideanMatrix, EllipsoidCutoff, SnowManCutoff
 using ACEbase.FIO: write_dict, read_dict
 using Test, LinearAlgebra, StaticArrays, SparseArrays
 import AtomsBuilder: bulk, rattle!
@@ -35,38 +35,6 @@ _dense(G, N) = (A = zeros(3N, 3N); for i=1:N, j=1:N; A[3i-2:3i, 3j-2:3j] .= G[i,
       fm = FrictionModel((equ=m,))
       Γ = Gamma(fm, at); Gd = _dense(Γ, N)
       @test minimum(eigvals(Symmetric(Gd))) > -1e-8
-   end
-
-   @testset "DPD model: momentum conservation (dummy :X species)" begin
-      # Regression: the bond-channel sentinel must not collide with the environment
-      # species. The dummy AtomsBase species `:X` has atomic number 0, which used to
-      # equal the sentinel, letting env atoms pool into the bond channel and breaking
-      # the bond's Z2-odd parity => Σ no longer antisymmetric => Γ not momentum
-      # conserving (row sums of Γ must vanish for a pairwise DPD model).
-      import AtomsBase: Atom, FlexibleSystem, cell_vectors, periodicity, position
-      import Unitful: @u_str
-      atX = FlexibleSystem([Atom(0, position(at, i)) for i in 1:N];
-                           cell_vectors = cell_vectors(at), periodicity = periodicity(at))
-      m = mbdpd_matrixmodel(EuclideanVector(), [:X], [:X];
-             maxorder=2, maxdeg=6, rcutbond=5.0, rcutenv=5.0, zcutenv=5.0, n_rep=2)
-      fm = FrictionModel((cov=m,))
-      # randomise coefficients so the property isn't trivially satisfied at zero
-      Random.seed!(3)
-      c = params(fm; format=:matrix, joinsites=true)
-      set_params!(fm, map(x -> randn(size(x)), c))
-      Σnt = Sigma(fm, atX)
-      Σ = Σnt.cov[1]
-      I, J, _ = findnz(Σ)
-      @test maximum(norm(Σ[i,j] + Σ[j,i]) for (i,j) in zip(I,J)) < 1e-12   # antisymmetry
-      Γ = Gamma(fm, atX)
-      @test maximum(norm(sum(Γ[i,j] for j in 1:N)) for i in 1:N) < 1e-10   # zero row sums
-
-      # randf must produce momentum-conserving noise: the per-atom force vectors
-      # sum to zero (symmetric scalar noise contracted with antisymmetric Σ cancels).
-      @test all(begin
-                   F = randf(fm, Σnt)        # Vector{SVector{3}}, one force per atom
-                   norm(sum(F)) < 1e-10
-                end for _ in 1:20)
    end
 
    @testset "SnowMan PWC ($sym): combine, basis/matrix consistency, IO" for sym in (:symmetric, :antisymmetric)

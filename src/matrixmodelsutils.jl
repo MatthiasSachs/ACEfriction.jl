@@ -5,7 +5,7 @@ import ACEfriction.MatrixModels: OnSiteModel, OffSiteModel, BondBasis, onsite_li
        offsite_linbasis, SphericalCutoff, EllipsoidCutoff, SnowManCutoff, _o3symmetry, _default_id,
        _mreduce, NoZ2Sym, Odd, Even, SpeciesCoupled, SpeciesUnCoupled,
        AtomCentered, NeighborCentered, EvaluationCenter, _o3sym
-export RWCMatrixModel, PWCMatrixModel, OnsiteOnlyMatrixModel, mbdpd_matrixmodel
+export RWCMatrixModel, PWCMatrixModel, OnsiteOnlyMatrixModel
 
 # Outer convenience constructors. The basis backend is EquivariantTensors; the
 # `polytransform`/`trans` argument of the old backend is gone (the radial transform
@@ -201,20 +201,4 @@ function RWCMatrixModel(property, species_friction, species_env, evalcenter::Eva
     offsitemodels = _offsite_dict(bb, SphericalCutoff(rcut_off), species_friction, n_rep, speciescoupling)
     id = (id === nothing ? _o3id(property) : id)
     return RWCMatrixModel(onsitemodels, offsitemodels, id, evalcenter, speciescoupling)
-end
-
-"""
-    mbdpd_matrixmodel(property, species_friction, species_env; maxorder=2, maxdeg=5,
-        rcutbond=5.0, rcutenv=3.0, zcutenv=6.0, n_rep=3, ...)
-
-Momentum-preserving (DPD) friction model: a pairwise-coupled model on an ellipsoid
-bond environment with Z2-odd symmetry and species coupling.
-"""
-function mbdpd_matrixmodel(property, species_friction, species_env;
-        maxorder=2, maxdeg=5, rcutbond=5.0, rcutenv=3.0, zcutenv=6.0, n_rep=3,
-        species_substrat=[], id=nothing, kwargs...)
-    return PWCMatrixModel(property, species_friction, species_env,
-        EllipsoidCutoff(rcutbond, rcutenv, zcutenv);
-        n_rep=n_rep, maxorder=maxorder, maxdeg=maxdeg, z2sym=Odd(),
-        speciescoupling=SpeciesCoupled(), species_substrat=species_substrat, id=id, kwargs...)
 end

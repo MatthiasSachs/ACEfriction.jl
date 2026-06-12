@@ -18,7 +18,7 @@ using StaticArrays, LinearAlgebra
 
 # Sentinel "atomic number" marking the bond channel. Must never collide with a
 # real environment species: physical atomic numbers are >= 0 (with 0 the AtomsBase
-# dummy `:X`, used e.g. by DPD models), so a negative value is collision-proof. A
+# dummy `:X`), so a negative value is collision-proof. A
 # collision (e.g. the old value 0 vs an `:X` environment) would let environment
 # atoms pool into the bond channel, breaking the bond's odd-under-inversion (Z2)
 # property and hence momentum conservation.

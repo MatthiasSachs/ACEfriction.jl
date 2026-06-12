@@ -52,8 +52,8 @@ them with the *same* coefficients. The combination is selected by `symmetry`:
     :antisymmetric  Σ_ij = c · basis(sphere_i, bond i→j) - c · basis(sphere_j, bond j→i)
 
 `symmetry` is carried as a (Symbol-valued) type parameter `SnowManCutoff{T, S}` so the
-assembly dispatches on it via [`_snowman_combine`](@ref). `rcut` is the per-centre
-spherical radius (same convention as [`SphericalCutoff`](@ref)).
+assembly dispatches on it. `rcut` is the per-centre spherical radius (same convention as
+[`SphericalCutoff`](@ref)).
 """
 struct SnowManCutoff{T, S}
    rcut::T
