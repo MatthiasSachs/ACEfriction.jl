@@ -3,7 +3,7 @@ CurrentModule = ACEfriction
 ```
 
 ```@docs
-RWCMatrixModel
+CWCMatrixModel
 ```
 ```@docs
 PWCMatrixModel

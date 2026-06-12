@@ -24,8 +24,8 @@ export params, nparams, set_params!, scaling, get_ids, basis, matrix, randf
 import ACEfriction.FrictionFit: FrictionData, FluxFrictionModel, flux_assemble
 export FrictionData, FluxFrictionModel, flux_assemble
 
-import ACEfriction.MatrixModels: RWCMatrixModel, OnsiteOnlyMatrixModel, PWCMatrixModel
-export RWCMatrixModel, OnsiteOnlyMatrixModel, PWCMatrixModel
+import ACEfriction.MatrixModels: CWCMatrixModel, RWCMatrixModel, OnsiteOnlyMatrixModel, PWCMatrixModel
+export CWCMatrixModel, RWCMatrixModel, OnsiteOnlyMatrixModel, PWCMatrixModel
 
 import ACEfriction.DataUtils: write_dict, read_dict, load_h5fdata, save_h5fdata
 export write_dict, read_dict, load_h5fdata, save_h5fdata

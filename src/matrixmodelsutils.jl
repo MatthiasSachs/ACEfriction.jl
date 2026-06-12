@@ -1,11 +1,11 @@
 using ACEfriction.MatrixModels
 import ACEfriction.ETBackend: _atomic_number
-import ACEfriction.MatrixModels: RWCMatrixModel, PWCMatrixModel, OnsiteOnlyMatrixModel
+import ACEfriction.MatrixModels: CWCMatrixModel, RWCMatrixModel, PWCMatrixModel, OnsiteOnlyMatrixModel
 import ACEfriction.MatrixModels: OnSiteModel, OffSiteModel, BondBasis, onsite_linbasis,
        offsite_linbasis, SphericalCutoff, EllipsoidCutoff, SnowManCutoff, _o3symmetry, _default_id,
        _mreduce, NoZ2Sym, Odd, Even, SpeciesCoupled, SpeciesUnCoupled,
        AtomCentered, NeighborCentered, EvaluationCenter, _o3sym
-export RWCMatrixModel, PWCMatrixModel, OnsiteOnlyMatrixModel
+export CWCMatrixModel, RWCMatrixModel, PWCMatrixModel, OnsiteOnlyMatrixModel
 
 # Outer convenience constructors. The basis backend is EquivariantTensors; the
 # `polytransform`/`trans` argument of the old backend is gone (the radial transform
@@ -133,11 +133,17 @@ function _offsite_dict(bb, cutoff, species_friction, n_rep, sc::SpeciesCoupled)
 end
 
 """
-    RWCMatrixModel(property, species_friction, species_env; maxorder=2, maxdeg=5, rcut=5.0, n_rep=1, ...)
+    CWCMatrixModel(property, species_friction, species_env; maxorder=2, maxdeg=5, rcut=5.0, n_rep=1, ...)
 
-Row-wise coupled friction model (onsite + spherical offsite).
+Column-wise coupled friction model (onsite + spherical offsite).
+
+!!! note "Renamed from `RWCMatrixModel`"
+    This model was formerly called `RWCMatrixModel`. The coupling scheme named
+    *row-wise coupling* in Appendix C of the reference paper (Sachs et al., 2024) is more
+    appropriately termed *column-wise coupling*, the terminology used here. Constructing
+    `RWCMatrixModel` now raises an error pointing to `CWCMatrixModel`.
 """
-function RWCMatrixModel(property, species_friction, species_env;
+function CWCMatrixModel(property, species_friction, species_env;
         id=nothing, n_rep=1, maxorder=2, maxdeg=5, rcut=5.0,
         evalcenter=AtomCentered(), speciescoupling=SpeciesUnCoupled(),
         r0_ratio=0.4, rin_ratio=0.04, pcut=2, pin=2, p_sel=2,
@@ -163,17 +169,17 @@ function RWCMatrixModel(property, species_friction, species_env;
                         for z in species_friction)
     offsitemodels = _offsite_dict(bb, SphericalCutoff(rcut), species_friction, n_rep, speciescoupling)
     id = (id === nothing ? _o3id(property) : id)
-    return RWCMatrixModel(onsitemodels, offsitemodels, id, evalcenter, speciescoupling)
+    return CWCMatrixModel(onsitemodels, offsitemodels, id, evalcenter, speciescoupling)
 end
 
 """
-    RWCMatrixModel(property, species_friction, species_env, evalcenter::EvaluationCenter;
+    CWCMatrixModel(property, species_friction, species_env, evalcenter::EvaluationCenter;
                    rcut_on, rcut_off, maxorder_on, maxdeg_on, ..._on/_off, bond_weight)
 
-Backward-compatible RWC constructor with a positional `evalcenter` and separate
+Backward-compatible CWC constructor with a positional `evalcenter` and separate
 onsite/offsite hyperparameters (mirrors the pre-ET interface).
 """
-function RWCMatrixModel(property, species_friction, species_env, evalcenter::EvaluationCenter;
+function CWCMatrixModel(property, species_friction, species_env, evalcenter::EvaluationCenter;
         id=nothing, n_rep=1, speciescoupling=SpeciesUnCoupled(), species_substrat=[],
         rcut_on=5.0, rcut_off=rcut_on,
         maxorder_on=2, maxdeg_on=5, maxorder_off=maxorder_on, maxdeg_off=maxdeg_on,
@@ -200,5 +206,5 @@ function RWCMatrixModel(property, species_friction, species_env, evalcenter::Eva
                         for z in species_friction)
     offsitemodels = _offsite_dict(bb, SphericalCutoff(rcut_off), species_friction, n_rep, speciescoupling)
     id = (id === nothing ? _o3id(property) : id)
-    return RWCMatrixModel(onsitemodels, offsitemodels, id, evalcenter, speciescoupling)
+    return CWCMatrixModel(onsitemodels, offsitemodels, id, evalcenter, speciescoupling)
 end

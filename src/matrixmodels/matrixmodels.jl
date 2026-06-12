@@ -20,7 +20,7 @@ import ACEfriction.ETBackend: ETInvariant, ETVector, ETMatrix, ETSymMatrix, ETPr
        _atomic_number, _chemical_symbol, block_type, output_LL
 import ACEfriction.ETBackend: write_dict, read_dict
 
-export MatrixModel, RWCMatrixModel, OnsiteOnlyMatrixModel, PWCMatrixModel
+export MatrixModel, CWCMatrixModel, RWCMatrixModel, OnsiteOnlyMatrixModel, PWCMatrixModel
 export OnSiteModel, OffSiteModel, BondBasis, SiteInds
 export onsite_linbasis, offsite_linbasis, env_cutoff
 export O3Symmetry, Invariant, VectorEquivariant, MatrixEquivariant

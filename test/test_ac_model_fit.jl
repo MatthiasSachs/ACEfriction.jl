@@ -32,7 +32,7 @@ end
 train_tol = 0.1;
 tol = 1E-9;
 
-@info "Create RWC friction model"
+@info "Create CWC friction model"
 
 evalcenter= AtomCentered()
 species_friction = [:H]
@@ -40,15 +40,18 @@ species_env = [:Cu,:H]
 species_substrat = [:Cu]
 rcut = 5.0
 
-m_equ = RWCMatrixModel(EuclideanMatrix(Float64),species_friction,species_env,evalcenter;
+m_equ = CWCMatrixModel(EuclideanMatrix(Float64),species_friction,species_env,evalcenter;
     species_substrat = [:Cu],
     n_rep=1, rcut_on = rcut, rcut_off = rcut, maxorder_on=2, maxdeg_on=3,
-    species_maxorder_dict_on = Dict( :H => 1), 
+    species_maxorder_dict_on = Dict( :H => 1),
     species_weight_cat_on = Dict(:H => .75, :Cu=> 1.0),
-    species_maxorder_dict_off = Dict( :H => 0), 
+    species_maxorder_dict_off = Dict( :H => 0),
     species_weight_cat_off = Dict(:H => 1.0, :Cu=> 1.0),
     bond_weight = .5
 );
+
+# RWCMatrixModel was renamed to CWCMatrixModel; the old name must now error.
+@test_throws ErrorException RWCMatrixModel(EuclideanMatrix(Float64), species_friction, species_env, evalcenter)
 
 fm= FrictionModel((mequ=m_equ,));
 
@@ -77,7 +80,7 @@ n_test = length(rdata) - n_train
 fdata = Dict("train" => rdata[1:n_train], 
             "test"=> rdata[n_train+1:end]);
             
-@info "Fit RWC friction model"            
+@info "Fit CWC friction model"            
 c = params(fm)
 
 ffm = FluxFrictionModel(c)
@@ -93,7 +96,7 @@ loss_traj = Dict("train"=>Float64[], "test" => Float64[])
 
 epoch = 0
 batchsize = 10
-nepochs = 300
+nepochs = 2000
 
 opt = Flux.setup(Adam(1E-3, (0.99, 0.999)),ffm)
 dloader = DataLoader(flux_data["train"], batchsize=batchsize, shuffle=true)

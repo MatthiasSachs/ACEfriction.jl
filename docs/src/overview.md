@@ -12,7 +12,7 @@ The underlying model is based on an equivariance-preserving matrix square root d
 ```math
 {\bm \Gamma} = {\bm \Sigma}{\bm \Sigma}^T,
 ```
-where block entries of the matrix square root ${\bm \Sigma}\left ( ({\bm r}_{i},z_i)_{i=1}^{N_{\rm at}} \right ) \in \mathbb{R}^{3 N_{\rm at} \times m}$ with some $m \in \mathbb{N}$, are linearly expanded using an equivariant linear atomic cluster expansion. The identity ${\bm \Gamma}={\bm \Sigma}{\bm \Sigma}^{T}$ holds verbatim for the onsite/row-wise coupling schemes; for the pair-wise coupling the friction tensor is assembled block-wise from ${\bm \Sigma}$ via a pair-coupled fluctuation–dissipation relation (equivalently, ${\bm \Gamma}=\tilde{\bm \Sigma}\tilde{\bm \Sigma}^{T}$ for a transformed square root $\tilde{\bm \Sigma}$). See [Assembly of the friction tensor](@ref gamma-assembly).
+where block entries of the matrix square root ${\bm \Sigma}\left ( ({\bm r}_{i},z_i)_{i=1}^{N_{\rm at}} \right ) \in \mathbb{R}^{3 N_{\rm at} \times m}$ with some $m \in \mathbb{N}$, are linearly expanded using an equivariant linear atomic cluster expansion. The identity ${\bm \Gamma}={\bm \Sigma}{\bm \Sigma}^{T}$ holds verbatim for the onsite/column-wise coupling schemes; for the pair-wise coupling the friction tensor is assembled block-wise from ${\bm \Sigma}$ via a pair-coupled fluctuation–dissipation relation (equivalently, ${\bm \Gamma}=\tilde{\bm \Sigma}\tilde{\bm \Sigma}^{T}$ for a transformed square root $\tilde{\bm \Sigma}$). See [Assembly of the friction tensor](@ref gamma-assembly).
 
 ## Code Overview
 
@@ -20,7 +20,7 @@ The package `ACEfriction` is comprised of three main sub-modules:
 
 1. The sub-module `FrictionModels` implements the structure `FrictionModel`, which facilitates the specification of and evaluation of friction models. The module implements the functions `Gamma(fm::FrictionModel, at::Atoms)`, `Sigma(fm::FrictionModel, at::Atoms)` which evaluate the friction model `fm` at the atomic configuration `at` to the correspong friction tensor ${\bm \Gamma}$ and  diffusion coefficient matrix ${\bm \Sigma}$, respectively. Moreover, it provides the functions `Gamma(fm::FrictionModel, Σ)`, `randf(fm::FrictionModel, Σ)` for efficient computation of the friction tensor and generation of ${\rm Normal}({\bm 0}, {\bm \Gamma})$-distributed Gaussian random numbers from a precomputed diffusion coeffiient matrix `Σ`.
 
-2. The sub-module `MatrixModels` implements various matrix models, which make up a friction model and, in essence, specify (i) properties of the ACE-basis used to evaluate blocks ${\bm \Sigma}_{ij}$ of the difffusion matrix, and (ii) how blocks  ${\bm \Sigma}_{ij}$ are combined in the assembly of the friction tensor ${\bm \Gamma}$. The assembly of the friction tensor is governed by what is referred to in [Sachs et al., (2024)](@ref ACEfriction-paper) as the coupling scheme and implements versions of the the pair-wise coupling and row-wise coupling described therein.
+2. The sub-module `MatrixModels` implements various matrix models, which make up a friction model and, in essence, specify (i) properties of the ACE-basis used to evaluate blocks ${\bm \Sigma}_{ij}$ of the difffusion matrix, and (ii) how blocks  ${\bm \Sigma}_{ij}$ are combined in the assembly of the friction tensor ${\bm \Gamma}$. The assembly of the friction tensor is governed by what is referred to in [Sachs et al., (2024)](@ref ACEfriction-paper) as the coupling scheme and implements versions of the the pair-wise coupling and column-wise coupling described therein (the latter is named *row-wise coupling* in Appendix C of the paper; see the warning in [Matrix models and coupling schemes](@ref matrix-models)).
 
 3. The sub-module `FrictionFit` provides utility functions for training of friction models using the julia machine learning library `Flux.jl`. 
 
@@ -44,6 +44,9 @@ Internally these are realised by decomposing a block into its $O(3)$-irreducible
 
 A friction model is a sum over one or more *matrix models*. Each matrix model specifies (i) an equivariant ACE expansion of the blocks ${\bm \Sigma}_{ij}$ of a diffusion (matrix square-root) matrix ${\bm \Sigma}$, and (ii) a *coupling scheme* that fixes the block sparsity of ${\bm \Sigma}$ and how the friction tensor ${\bm \Gamma}$ is assembled from it (see [Assembly of the friction tensor](@ref gamma-assembly) below); the total friction tensor is the sum of the per-model contributions. The package provides:
 
+!!! warning "Renamed from `RWCMatrixModel`"
+    What was formerly `RWCMatrixModel` is now `CWCMatrixModel`. The coupling scheme named *row-wise coupling* in Appendix C of [Sachs et al., (2024)](@ref ACEfriction-paper) is more appropriately named *column-wise coupling* — the terminology used in this version of ACEfriction.jl. Constructing `RWCMatrixModel` now raises an error pointing to `CWCMatrixModel`.
+
 - **`OnsiteOnlyMatrixModel`** — block-diagonal. Only ${\bm \Sigma}_{ii}$ is non-zero, expanded from the spherical environment of atom $i$:
   ```math
   {\bm \Sigma}_{ij} = \delta_{ij}\,{\bm \Sigma}_{ii}\big(({\bm r}_k,z_k)_{k\in\mathcal{N}_i}\big).
@@ -53,13 +56,13 @@ A friction model is a sum over one or more *matrix models*. Each matrix model sp
   {\bm \Sigma}_{ij} = {\bm \Sigma}_{ij}\big({\bm r}_{ij}, ({\bm r}_k,z_k)_{k}\big), \qquad {\bm \Sigma}_{ii} = {\bm 0}.
   ```
   (The friction tensor ${\bm \Gamma}$ nevertheless acquires a non-zero onsite diagonal; see the pair-wise assembly below.)
-- **`RWCMatrixModel`** (row-wise coupling) — full matrix with an *independently fitted* onsite block ${\bm \Sigma}_{ii}$ plus atom-centred off-diagonal blocks ${\bm \Sigma}_{ij}$ ($i\neq j$).
+- **`CWCMatrixModel`** (column-wise coupling) — full matrix with an *independently fitted* onsite block ${\bm \Sigma}_{ii}$ plus atom-centred off-diagonal blocks ${\bm \Sigma}_{ij}$ ($i\neq j$). (Formerly `RWCMatrixModel`; see the warning above.)
 
 ### [Assembly of the friction tensor](@id gamma-assembly)
 
 How ${\bm \Gamma}$ is built from ${\bm \Sigma}$ depends on the coupling scheme — it is **not** in general the plain product ${\bm \Sigma}{\bm \Sigma}^{T}$:
 
-- **Onsite / row-wise** coupling (`OnsiteOnlyMatrixModel`, `RWCMatrixModel`): the friction tensor is the matrix square ${\bm \Gamma} = {\bm \Sigma}{\bm \Sigma}^{T}$, i.e.
+- **Onsite / column-wise** coupling (`OnsiteOnlyMatrixModel`, `CWCMatrixModel`): the friction tensor is the matrix square ${\bm \Gamma} = {\bm \Sigma}{\bm \Sigma}^{T}$, i.e.
   ```math
   {\bm \Gamma}_{ij} = \sum_{k} {\bm \Sigma}_{ik}\,{\bm \Sigma}_{jk}^{T}.
   ```
@@ -75,7 +78,7 @@ In both cases the resulting ${\bm \Gamma}$ is symmetric positive semi-definite, 
 
 The local environment entering each block is delimited by a cutoff:
 
-- **`SphericalCutoff(rcut)`** — used for onsite blocks and for the atom-centred offsite blocks of `RWCMatrixModel`: the environment of $i$ is $\mathcal{N}_i = \{\,k : \|{\bm r}_{ik}\| \le r_{\rm cut}\,\}$, and for a pair $(i,j)$ the bond partner is $j\in\mathcal{N}_i$.
+- **`SphericalCutoff(rcut)`** — used for onsite blocks and for the atom-centred offsite blocks of `CWCMatrixModel`: the environment of $i$ is $\mathcal{N}_i = \{\,k : \|{\bm r}_{ik}\| \le r_{\rm cut}\,\}$, and for a pair $(i,j)$ the bond partner is $j\in\mathcal{N}_i$.
 - **`EllipsoidCutoff(rcutbond, rcutenv, zcutenv)`** — a bond-centred ellipsoidal environment for `PWCMatrixModel`: bonds with $\|{\bm r}_{ij}\|\le r_{\rm cut}^{\rm bond}$, and environment atoms inside $(z/z_{\rm cut}^{\rm env})^2 + (r/r_{\rm cut}^{\rm env})^2 \le 1$ around the bond midpoint ($z$ along the bond, $r$ perpendicular).
 - **`SnowManCutoff(rcut, symmetry)`** — an atom-centred alternative for the pair model: the block of $(i,j)$ combines the ACE basis evaluated on the spherical environment of $i$ (bond $i\to j$) and of $j$ (bond $j\to i$),
   ```math

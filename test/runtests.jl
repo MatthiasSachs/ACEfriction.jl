@@ -19,7 +19,7 @@ end
     @testset "I/O data" begin _run_test("test_IO_data.jl") end
 
     # model-fit tests on real data (build -> save/load -> Flux fit to tolerance)
-    @testset "RWC model fit" begin _run_test("test_ac_model_fit.jl") end
+    @testset "CWC model fit" begin _run_test("test_ac_model_fit.jl") end
     @testset "PWC fit (spherical cutoff)" begin _run_test("test_pwcsc_model_fit.jl") end
     @testset "PWC fit (ellipsoid cutoff)" begin _run_test("test_pwcec_model_fit.jl") end
 end
